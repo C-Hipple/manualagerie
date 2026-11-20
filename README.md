@@ -6,7 +6,7 @@ Ask *"What size is the hose connector on my dishwasher?"*. The assistant finds t
 ## Run locally (Docker)
 
 ```bash
-cp .env.example .env               # set APP_PASSWORD; OPENROUTER_API_KEY can live here or in your shell
+cp .env.example .env               # set APP_PASSWORD and OPENROUTER_API_KEY (or export the key in your shell)
 docker build -t manualagerie .
 docker run -d --name manualagerie --env-file .env -e OPENROUTER_API_KEY \
   -p 127.0.0.1:8765:8080 -v "$PWD/data:/data" manualagerie
@@ -22,6 +22,25 @@ uv run pytest
 ```
 
 Scanned pages need `tesseract` on your PATH. It is already included in the Docker image.
+
+## LLM backend: OpenRouter
+
+Manualagerie has no model of its own. Every chat answer and the metadata extraction at upload time go through [OpenRouter](https://openrouter.ai), using its OpenAI-compatible API, so any model OpenRouter hosts can be the backend.
+
+1. Create an API key at [openrouter.ai/keys](https://openrouter.ai/keys) and set it as `OPENROUTER_API_KEY`. Without it the app still starts and serves your library, but chat and metadata extraction are disabled (a warning is logged at startup).
+2. Optionally pick a model with `OPENROUTER_MODEL`, using the `vendor/model` slug from [openrouter.ai/models](https://openrouter.ai/models). The default is `deepseek/deepseek-v4.1-flash-1017`. Choose one that supports **tool calling**, since the assistant uses tools to list manuals and search inside them.
+3. Optionally set `OPENROUTER_METADATA_MODEL` to use a different (e.g. cheaper) model for extracting a manual's name, device and summary on upload. It defaults to `OPENROUTER_MODEL`.
+
+If your model doesn't support tool calling, set `LLM_TOOLS=false` to use the simpler retrieve-then-answer pipeline instead. To point at a different OpenAI-compatible endpoint, set `OPENROUTER_BASE_URL` (default `https://openrouter.ai/api/v1`).
+
+## Deploy
+
+- Mount a persistent volume at `/data`. It holds the SQLite DB, the original PDFs, nightly backups and the auto-generated cookie secret.
+- Run **exactly one replica**: SQLite on a volume can't be shared between replicas.
+- Required env: `OPENROUTER_API_KEY` (see [LLM backend](#llm-backend-openrouter)) and `APP_PASSWORD`. Set `APP_URL=https://…` so session cookies are marked Secure.
+- Health check: `GET /healthz`.
+
+All settings are listed in `.env.example`.
 
 ## Themes
 
@@ -45,12 +64,3 @@ Tags show as chips in the library list, appear in every catalog entry the model 
 Not everything worth remembering is in a manual. The **Notes** page holds short facts the household writes down itself: *"Upstairs AC filters: 16x25x1, MERV 11, two of them"*, the paint colour in the hallway, where the water shut-off is. Each note has a title, free text and optional tags.
 
 The assistant sees every note next to the manual catalog, so *"what size are my upstairs AC filters?"* is answered straight from the note, with a 📝 chip that links back to it. When the notes outgrow the prompt budget (`NOTES_INLINE_CHARS`, 20k characters by default), only their titles are inlined and the model reads the rest through a `search_notes` tool.
-
-## Deploy
-
-- Mount a persistent volume at `/data`. It holds the SQLite DB, the original PDFs, nightly backups and the auto-generated cookie secret.
-- Run **exactly one replica**: SQLite on a volume can't be shared between replicas.
-- Required env: `OPENROUTER_API_KEY` and `APP_PASSWORD`. Set `APP_URL=https://…` so session cookies are marked Secure.
-- Health check: `GET /healthz`.
-
-All settings are listed in `.env.example`.
