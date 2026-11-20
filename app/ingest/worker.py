@@ -1,5 +1,6 @@
 """Background thread that processes ingest jobs and nightly backups."""
 import logging
+import sqlite3
 import threading
 import time
 from datetime import datetime
@@ -125,6 +126,11 @@ def _loop() -> None:
                 jobs_repo.finish(conn, job["id"])
                 conn.commit()
             except Exception as e:
+                if isinstance(e, sqlite3.IntegrityError) and manuals_repo.get(conn, job["manual_id"]) is None:
+                    # manual was deleted mid-processing: treat as cancelled
+                    conn.rollback()
+                    log.info("manual %s deleted while processing; job cancelled", job["manual_id"])
+                    continue
                 log.exception("job %s failed", job["id"])
                 conn.rollback()
                 retry = jobs_repo.fail(conn, job["id"], f"{type(e).__name__}: {e}")

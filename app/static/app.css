@@ -131,3 +131,7 @@ table.manuals th { font-size: .8rem; text-transform: uppercase; letter-spacing: 
   .msg.user { max-width: 92%; }
   .theme-select { max-width: 120px; }
 }
+
+/* row delete button */
+table.manuals td.row-actions { width: 1%; text-align: right; }
+button.icon-btn { padding: .1rem .5rem; line-height: 1.2; font-size: 1.1rem; }

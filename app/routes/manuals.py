@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from .. import db
 from ..config import get_settings
@@ -159,11 +159,13 @@ def manual_reindex(manual_id: int):
 
 
 @router.post("/manuals/{manual_id}/delete")
-def manual_delete(manual_id: int):
+def manual_delete(request: Request, manual_id: int):
     with db.get_conn() as conn:
         m = _get_or_404(conn, manual_id)
         manuals_repo.delete(conn, manual_id)
     (get_settings().files_dir / f"{m['sha256']}.pdf").unlink(missing_ok=True)
+    if request.headers.get("hx-request"):
+        return Response(status_code=200)  # empty body: htmx swaps the row away
     return RedirectResponse("/manuals", status_code=303)
 
 

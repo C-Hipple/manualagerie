@@ -32,3 +32,40 @@ def test_login_and_upload(tmp_path):
         assert "Already in library" in r.text
         assert "Fridge" in c.get("/manuals").text
         assert c.post("/api/conversations").json()["id"] > 0
+
+
+def _login_and_upload(c, tmp_path, name="Fridge.pdf"):
+    c.post("/login", data={"password": "pw"}, follow_redirects=False)
+    pdf = make_pdf(tmp_path / name, [[("FRIDGE FILTER", 16), ("Replace the water filter.", 10)]])
+    c.post("/manuals/upload", files=[("files", (name, pdf.read_bytes(), "application/pdf"))],
+           headers={"hx-request": "true"})
+    from app import db
+    from app.repo import manuals as manuals_repo
+    with db.get_conn() as conn:
+        return dict(manuals_repo.list_all(conn)[0])
+
+
+def test_delete_manual_htmx(tmp_path):
+    from app import db
+    from app.config import get_settings
+    from app.repo import manuals as manuals_repo
+    with client() as c:
+        m = _login_and_upload(c, tmp_path, "Htmx.pdf")
+        f = get_settings().files_dir / f"{m['sha256']}.pdf"
+        assert f.exists()
+        assert f'hx-post="/manuals/{m["id"]}/delete"' in c.get("/manuals/rows").text
+        r = c.post(f"/manuals/{m['id']}/delete", headers={"hx-request": "true"})
+        assert r.status_code == 200 and r.text == ""
+        with db.get_conn() as conn:
+            assert manuals_repo.get(conn, m["id"]) is None
+        assert not f.exists()
+        assert f'/manuals/{m["id"]}/delete' not in c.get("/manuals/rows").text
+
+
+def test_delete_manual_form_and_unknown(tmp_path):
+    with client() as c:
+        m = _login_and_upload(c, tmp_path, "Form.pdf")
+        r = c.post(f"/manuals/{m['id']}/delete", follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == "/manuals"
+        assert c.post(f"/manuals/{m['id']}/delete").status_code == 404
+        assert c.post("/manuals/999999/delete", headers={"hx-request": "true"}).status_code == 404
