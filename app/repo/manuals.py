@@ -2,8 +2,35 @@ import sqlite3
 
 EDITABLE_FIELDS = (
     "title", "device_name", "brand", "model_numbers", "category",
-    "doc_type", "room", "summary", "notes",
+    "doc_type", "room", "tags", "summary", "notes",
 )
+
+
+def parse_tags(raw) -> list[str]:
+    """Split a comma/semicolon-separated tag string into clean, unique tags."""
+    if not raw:
+        return []
+    if isinstance(raw, (list, tuple)):
+        parts = [str(p) for p in raw]
+    else:
+        parts = str(raw).replace(";", ",").split(",")
+    out, seen = [], set()
+    for part in parts:
+        tag = " ".join(part.split())
+        if tag and tag.lower() not in seen:
+            seen.add(tag.lower())
+            out.append(tag)
+    return out
+
+
+def normalize_tags(raw) -> str | None:
+    tags = parse_tags(raw)
+    return ", ".join(tags) if tags else None
+
+
+def tags_of(manual) -> list[str]:
+    return parse_tags(manual["tags"]) if manual is not None else []
+
 
 
 def get_by_sha(conn: sqlite3.Connection, sha256: str):
@@ -38,6 +65,8 @@ def list_ready(conn: sqlite3.Connection):
 def update_fields(conn: sqlite3.Connection, manual_id: int, fields: dict) -> None:
     fields = {k: v for k, v in fields.items() if k in EDITABLE_FIELDS or k in (
         "status", "error", "page_count", "pages_done")}
+    if "tags" in fields:
+        fields["tags"] = normalize_tags(fields["tags"])
     if not fields:
         return
     sets = ", ".join(f"{k} = ?" for k in fields)
@@ -69,11 +98,17 @@ def search_catalog(conn: sqlite3.Connection, query: str | None):
     if not query:
         return rows
     terms = [t.lower() for t in query.split() if t.strip()]
+
+    def hay(r, keys):
+        return " ".join(str(r[k] or "") for k in keys).lower()
+
     def score(r):
-        hay = " ".join(str(r[k] or "") for k in (
-            "title", "device_name", "brand", "model_numbers", "category", "doc_type", "room", "summary", "filename"
-        )).lower()
-        return sum(1 for t in terms if t in hay)
+        # The user's own tags and names outrank incidental words in a summary.
+        tagged = hay(r, ("tags",))
+        named = hay(r, ("device_name", "room", "title", "brand", "model_numbers", "category", "doc_type"))
+        rest = hay(r, ("summary", "notes", "filename"))
+        return sum(3 if t in tagged else 2 if t in named else 1 if t in rest else 0 for t in terms)
+
     scored = [(score(r), r) for r in rows]
     return [r for s, r in sorted(scored, key=lambda x: -x[0]) if s > 0]
 

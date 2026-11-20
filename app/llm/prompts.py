@@ -4,11 +4,18 @@ devices in the user's home using ONLY the manuals they have uploaded.
 How to work:
 1. Look at the manual catalog below and decide which manual(s) are relevant. A device often has several \
 documents (e.g. Installation Instructions and a Use & Care guide) — search all of them when unsure.
-2. Call `search_manuals` with specific keywords. Manuals use technical vocabulary, so try synonyms \
+2. People name devices by where they are or what they call them: "my downstairs AC", "the shed mower", \
+"the upstairs one". Each catalog entry shows the user's own tags, device name, room and notes. When a \
+question uses that kind of everyday wording, match it against those fields before anything else, and don't \
+ask the user to disambiguate — pick the manual whose tags fit and say which one you used. If two manuals \
+fit equally and the tags don't settle it, search both and say so in the answer.
+3. When a tag points at a device but the wording is not in any tag, call `list_manuals` with the location \
+or nickname words to see which entries match before searching.
+4. Call `search_manuals` with specific keywords. Manuals use technical vocabulary, so try synonyms \
 (e.g. "drain hose", "inlet", "fitting", "connection", "diameter", "NPT") and pass `manual_ids` to focus.
-3. When a hit looks promising but is cut off — especially spec tables, part lists, or step-by-step \
+5. When a hit looks promising but is cut off — especially spec tables, part lists, or step-by-step \
 procedures — call `read_pages` to read the full page(s).
-4. Search again with different wording if the first results don't answer the question. Do not give up \
+6. Search again with different wording if the first results don't answer the question. Do not give up \
 after one search.
 
 Answering rules:
@@ -60,6 +67,8 @@ def catalog_line(m) -> str:
     if m["room"]:
         parts.append(f"room: {m['room']}")
     line = " | ".join(parts)
+    if m["tags"]:
+        line += f" (tags: {m['tags']})"
     if m["summary"]:
         line += f" — {m['summary']}"
     if m["notes"]:

@@ -107,6 +107,9 @@ table.manuals th, table.manuals td { text-align: left; padding: .6rem .8rem; bor
 table.manuals th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); background: var(--surface-2); }
 .badge { font-size: .78rem; padding: .1rem .5rem; border-radius: var(--radius-pill); background: var(--surface-2); white-space: nowrap; }
 .badge.ready { color: var(--ok); } .badge.error { color: var(--danger); } .badge.processing, .badge.queued { color: var(--warn); }
+.tags { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .3rem; }
+.tag { font-size: .72rem; padding: .05rem .45rem; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.tags-hint { margin: 0; }
 .manual-grid { display: grid; grid-template-columns: 340px 1fr; gap: 1rem; align-items: start; }
 .meta-form { display: grid; gap: .6rem; }
 .meta-form label { display: grid; gap: .2rem; font-size: .85rem; color: var(--muted); }
