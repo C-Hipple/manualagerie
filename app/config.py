@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     strip_other_langs: bool = True
     backup_keep: int = 7
     catalog_inline_limit: int = 300
+    notes_inline_chars: int = 20000
     start_worker: bool = True
 
     @property

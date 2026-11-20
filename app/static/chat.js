@@ -4,21 +4,24 @@
   const input = document.getElementById('input');
   const sendBtn = document.getElementById('send');
   const titles = JSON.parse(document.getElementById('manual-titles').textContent || '{}');
+  const noteTitles = JSON.parse(document.getElementById('note-titles')?.textContent || '{}');
   let convId = messagesEl.dataset.convId || null;
   let busy = false;
 
   const CITE_RE = /\[#(\d+)\s*,?\s*pp?\.?\s*(\d+)(?:\s*[-–]\s*(\d+))?\]/g;
+  const NOTE_CITE_RE = /\[note\s*#?\s*(\d+)\]/gi;
   const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  function shortTitle(id) {
-    const t = titles[id] || `Manual #${id}`;
-    return t.length > 28 ? t.slice(0, 26) + '…' : t;
-  }
+  const clip = t => t.length > 28 ? t.slice(0, 26) + '…' : t;
+  const shortTitle = id => clip(titles[id] || `Manual #${id}`);
 
   function renderMarkdown(text) {
     const withCites = (text || '').replace(CITE_RE, (_, id, a, b) => {
       const pages = b && b !== a ? `p.${a}–${b}` : `p.${a}`;
       return `<a class="cite" href="/manuals/${id}/file#page=${a}" target="_blank" rel="noopener" title="${esc(titles[id] || '')}">${esc(shortTitle(id))} ${pages}</a>`;
+    }).replace(NOTE_CITE_RE, (_, id) => {
+      const t = noteTitles[id] || `Note #${id}`;
+      return `<a class="cite" href="/notes#note-${id}" target="_blank" rel="noopener" title="${esc(t)}">📝 ${esc(clip(t))}</a>`;
     });
     const html = window.marked ? marked.parse(withCites, { breaks: true }) : esc(withCites);
     return window.DOMPurify ? DOMPurify.sanitize(html, { ADD_ATTR: ['target'] }) : html;
@@ -96,13 +99,17 @@
             const li = document.createElement('li');
             li.textContent = ev.text;
             if (ev.text.startsWith('Reading')) li.className = 'reading';
+            else if (ev.text.startsWith('Checking your notes')) li.className = 'notes';
             statuses.appendChild(li);
             if (!answer) body.innerHTML = '<span class="thinking">Working</span>';
           } else if (ev.type === 'error') {
             el.classList.add('error');
             body.textContent = ev.text;
           } else if (ev.type === 'done') {
-            ev.citations?.forEach(c => { if (c.title) titles[c.manual_id] = c.title; });
+            ev.citations?.forEach(c => {
+              if (!c.title) return;
+              if (c.note_id) noteTitles[c.note_id] = c.title; else titles[c.manual_id] = c.title;
+            });
             body.innerHTML = renderMarkdown(answer);
             maybeAddToSidebar(text);
           }

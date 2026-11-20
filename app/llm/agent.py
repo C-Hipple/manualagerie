@@ -10,15 +10,17 @@ from .. import db
 from ..config import get_settings
 from ..repo import chat as chat_repo
 from ..repo import manuals as manuals_repo
+from ..repo import notes as notes_repo
 from ..search import fts
 from . import tools as tools_mod
 from .client import get_async_client
 from .prompts import (FALLBACK_CONTEXT, FALLBACK_PLAN_PROMPT, SYSTEM_PROMPT, TOOL_NOTE_INLINE,
-                      TOOL_NOTE_LARGE, build_catalog)
+                      TOOL_NOTE_LARGE, TOOL_NOTE_NOTES, build_catalog, build_notes)
 
 log = logging.getLogger(__name__)
 
 CITATION_RE = re.compile(r"\[#(\d+)\s*,?\s*pp?\.?\s*(\d+)(?:\s*[-–]\s*(\d+))?\]")
+NOTE_CITATION_RE = re.compile(r"\[note\s*#?\s*(\d+)\]", re.IGNORECASE)
 HISTORY_TURNS = 10
 
 
@@ -34,12 +36,20 @@ def parse_citations(text: str) -> list[dict]:
     return out
 
 
+def parse_note_citations(text: str) -> list[dict]:
+    ids = dict.fromkeys(int(m.group(1)) for m in NOTE_CITATION_RE.finditer(text or ""))
+    return [{"note_id": i} for i in ids]
+
+
 def build_system_prompt(conn) -> str:
     s = get_settings()
     rows = manuals_repo.list_ready(conn)
     catalog, truncated = build_catalog(rows, s.catalog_inline_limit)
+    note_rows = notes_repo.list_all(conn)
+    notes, abbreviated = build_notes(note_rows, s.notes_inline_chars, s.catalog_inline_limit)
+    tool_note = (TOOL_NOTE_LARGE if truncated else TOOL_NOTE_INLINE) + (TOOL_NOTE_NOTES if abbreviated else "")
     return SYSTEM_PROMPT.format(
-        tool_note=TOOL_NOTE_LARGE if truncated else TOOL_NOTE_INLINE,
+        tool_note=tool_note, note_count=len(note_rows), notes=notes,
         count=len(rows), catalog=catalog,
     )
 
@@ -139,6 +149,10 @@ async def run_turn(conv_id: int, user_text: str) -> AsyncIterator[dict]:
         for c in citations:
             m = known.get(c["manual_id"])
             c["title"] = (m["title"] or m["filename"]) if m else None
+        for c in parse_note_citations(final_text):
+            n = notes_repo.get(conn, c["note_id"])
+            c["title"] = n["title"] if n else None
+            citations.append(c)
         msg_id = chat_repo.add_message(conn, conv_id, "assistant", final_text, citations=citations,
                                        model=s.openrouter_model)
         conn.commit()

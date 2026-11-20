@@ -8,9 +8,15 @@ from .. import db
 from ..llm import agent
 from ..repo import chat as chat_repo
 from ..repo import manuals as manuals_repo
+from ..repo import notes as notes_repo
 from ..web import templates
 
 router = APIRouter()
+
+
+def _script_json(obj) -> str:
+    """JSON safe to inline in a <script> block, even when a title contains "</script>"."""
+    return json.dumps(obj).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
 def _page(request: Request, conv_id: int | None):
@@ -23,9 +29,12 @@ def _page(request: Request, conv_id: int | None):
                 if m["role"] == "user" or (m["role"] == "assistant" and not m["tool_calls"])] if conv else []
         manuals = manuals_repo.list_all(conn)
         ready = sum(1 for m in manuals if m["status"] == "ready")
+        notes = notes_repo.list_all(conn)
     titles = {m["id"]: (m["title"] or m["filename"]) for m in manuals}
+    note_titles = {n["id"]: n["title"] for n in notes}
     return templates.TemplateResponse(request, "chat.html", {
-        "convs": convs, "conv": conv, "msgs": msgs, "titles_json": json.dumps(titles), "ready_count": ready,
+        "convs": convs, "conv": conv, "msgs": msgs, "titles_json": _script_json(titles), "ready_count": ready,
+        "note_titles_json": _script_json(note_titles), "note_count": len(notes),
     })
 
 

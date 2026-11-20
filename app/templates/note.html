@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ n.title }} · Notes · Manualagerie{% endblock %}
+{% block content %}
+<main class="page notes-page">
+  <p><a href="/notes">← All notes</a></p>
+  <h1>Edit note</h1>
+  {% if request.query_params.get('empty') %}<p class="error">Give the note a title or some text.</p>{% endif %}
+  <form method="post" action="/notes/{{ n.id }}" class="card note-form">
+    {% set note = n %}{% include "_note_fields.html" %}
+    <div class="row">
+      <button class="primary">Save</button>
+      <a class="button" href="/notes#note-{{ n.id }}">Cancel</a>
+    </div>
+  </form>
+  <form method="post" action="/notes/{{ n.id }}/delete" class="row"
+        onsubmit="return confirm('Delete this note permanently?')"><button class="danger">Delete note</button></form>
+</main>
+{% endblock %}

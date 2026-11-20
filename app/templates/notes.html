@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Notes · Manualagerie{% endblock %}
+{% block content %}
+<main class="page notes-page">
+  <h1>Notes</h1>
+  <p class="muted">Things worth remembering that aren't in any manual: filter sizes, paint colours, where the water
+    shut-off is. The AI reads these too, so you can just ask <em>"what size are the upstairs AC filters?"</em></p>
+  {% if request.query_params.get('empty') %}<p class="error">Give the note a title or some text.</p>{% endif %}
+  <form method="post" action="/notes" class="card note-form">
+    {% set note = none %}{% include "_note_fields.html" %}
+    <div class="row"><button class="primary">Add note</button></div>
+  </form>
+
+  {% if notes %}
+  <input type="search" id="note-filter" class="note-filter" placeholder="Filter notes…" aria-label="Filter notes">
+  {% endif %}
+  <div class="notes" id="notes">
+    {% for n in notes %}
+    <article class="card note" id="note-{{ n.id }}">
+      <div class="note-head">
+        <h2>{{ n.title }}</h2>
+        <div class="note-actions">
+          <a class="button" href="/notes/{{ n.id }}">Edit</a>
+          <button type="button" class="danger icon-btn" title="Delete" aria-label="Delete {{ n.title }}"
+                  hx-post="/notes/{{ n.id }}/delete" hx-target="#note-{{ n.id }}" hx-swap="outerHTML"
+                  hx-confirm="Delete the note “{{ n.title }}”?">&times;</button>
+        </div>
+      </div>
+      {% if n.body %}<p class="note-body">{{ n.body }}</p>{% endif %}
+      {% if n.tags %}<div class="tags">{% for t in tag_list(n.tags) %}<span class="tag">{{ t }}</span>{% endfor %}</div>{% endif %}
+    </article>
+    {% else %}
+    <p class="muted">No notes yet. Add the first one above.</p>
+    {% endfor %}
+  </div>
+</main>
+<script>
+  const filter = document.getElementById('note-filter');
+  filter?.addEventListener('input', () => {
+    const words = filter.value.toLowerCase().split(/\s+/).filter(Boolean);
+    document.querySelectorAll('#notes .note').forEach(el => {
+      const text = el.textContent.toLowerCase();
+      el.hidden = !words.every(w => text.includes(w));
+    });
+  });
+</script>
+{% endblock %}
