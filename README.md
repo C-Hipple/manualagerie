@@ -25,7 +25,7 @@ Scanned pages need `tesseract` on your PATH. It is already included in the Docke
 
 ## Themes
 
-`app/static/themes.css` owns every colour; `app/static/app.css` only reads tokens, so a theme is a single token block. Light, dark and sepia ship today, and the picker in the top bar (also on the login screen) stores the choice in a `theme` cookie — `auto` follows the OS.
+`app/static/themes.css` owns every colour; `app/static/app.css` only reads tokens, so a theme is a single token block. Light, dark, sepia and parchment (warm paper, oxblood ink, serif) ship today, and the picker in the top bar (also on the login screen) stores the choice in a `theme` cookie — `auto` follows the OS.
 
 To add a theme:
 

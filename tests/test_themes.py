@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -6,6 +7,8 @@ from fastapi.testclient import TestClient
 from app import themes
 from app.main import app
 from app.themes import DEFAULT_THEME, THEME_IDS
+
+THEMES_CSS = Path(__file__).parent.parent / "app" / "static" / "themes.css"
 
 
 def client():
@@ -73,11 +76,33 @@ def test_picker_offers_every_registered_theme():
 
 
 def test_every_theme_has_a_token_block():
-    css = (Path(__file__).parent.parent / "app" / "static" / "themes.css").read_text()
+    css = THEMES_CSS.read_text()
     for theme_id in THEME_IDS - {"auto"}:
         assert f'[data-theme="{theme_id}"]' in css
     # "auto" is resolved by theme.js, so every theme needs a colour-scheme hint
     assert css.count("color-scheme:") >= len(THEME_IDS - {"auto"})
+
+
+def theme_tokens(css: str) -> dict[str, dict[str, str]]:
+    """{theme id: {token: value}} for every [data-theme="…"] block in themes.css."""
+    blocks = re.findall(r'\[data-theme="([\w-]+)"\]\s*\{(.*?)\}', css, re.S)
+    return {
+        theme_id: dict(re.findall(r"(--[\w-]+)\s*:\s*([^;]+);", body))
+        for theme_id, body in blocks
+    }
+
+
+def test_every_theme_defines_the_reference_tokens():
+    """A theme that forgets a token silently inherits light's value for it."""
+    tokens = theme_tokens(THEMES_CSS.read_text())
+    reference = set(tokens["light"])
+    assert len(reference) >= 14
+    missing = {
+        theme_id: sorted(reference - set(theme))
+        for theme_id, theme in tokens.items()
+        if theme_id != "light" and reference - set(theme)
+    }
+    assert not missing, f"themes missing tokens defined by light: {missing}"
 
 
 def test_app_css_has_no_hard_coded_colours():
