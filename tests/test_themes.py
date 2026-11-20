@@ -26,6 +26,7 @@ def html_theme(response) -> str:
 @pytest.mark.parametrize("value, expected", [
     ("light", "light"),
     ("dark", "dark"),
+    ("sepia", "sepia"),
     ("auto", "auto"),
     ("", DEFAULT_THEME),
     ("solarized", DEFAULT_THEME),

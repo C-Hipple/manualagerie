@@ -17,6 +17,7 @@ DEFAULT_THEME = "auto"
 THEMES: tuple[tuple[str, str], ...] = (
     ("auto", "Match system"),
     ("light", "Light"),
+    ("sepia", "Sepia"),
     ("dark", "Dark"),
 )
 THEME_IDS = frozenset(theme_id for theme_id, _ in THEMES)
