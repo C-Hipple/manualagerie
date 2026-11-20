@@ -1,5 +1,5 @@
 {% for m in manuals %}
-<tr>
+<tr id="manual-{{ m.id }}">
   <td>{{ m.device_name or '—' }}{% if m.room %}<div class="muted small">{{ m.room }}</div>{% endif %}</td>
   <td><a href="/manuals/{{ m.id }}">{{ m.title or m.filename }}</a>
       {% if m.doc_type %}<div class="muted small">{{ m.doc_type | replace('_', ' ') }}{% if m.brand %} · {{ m.brand }}{% endif %}</div>{% endif %}</td>
@@ -7,7 +7,10 @@
   <td class="hide-sm">{{ m.page_count or '' }}</td>
   <td><span class="badge {{ m.status }}" title="{{ m.error or '' }}">{{ status_label(m) }}</span>
       {% if m.error %}<div class="error small">{{ m.error[:80] }}</div>{% endif %}</td>
+  <td class="row-actions"><button type="button" class="danger icon-btn" title="Delete" aria-label="Delete {{ m.title or m.filename }}"
+      hx-post="/manuals/{{ m.id }}/delete" hx-target="#manual-{{ m.id }}" hx-swap="outerHTML"
+      hx-confirm="Delete {{ m.title or m.filename }}? This removes the PDF and its search index.">&times;</button></td>
 </tr>
 {% else %}
-<tr><td colspan="5" class="muted">No manuals yet. Upload your first one above.</td></tr>
+<tr><td colspan="6" class="muted">No manuals yet. Upload your first one above.</td></tr>
 {% endfor %}

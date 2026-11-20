@@ -19,7 +19,7 @@
   </form>
 
   <table class="manuals">
-    <thead><tr><th>Device</th><th>Document</th><th class="hide-sm">Model</th><th class="hide-sm">Pages</th><th>Status</th></tr></thead>
+    <thead><tr><th>Device</th><th>Document</th><th class="hide-sm">Model</th><th class="hide-sm">Pages</th><th>Status</th><th></th></tr></thead>
     <tbody id="manual-rows" hx-get="/manuals/rows" hx-trigger="refresh, every 3s" hx-swap="innerHTML">
       {% include "_manual_rows.html" %}
     </tbody>
