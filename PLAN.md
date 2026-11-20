@@ -130,6 +130,15 @@ CREATE TABLE messages (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE notes (                           -- household facts that aren't in any manual
+  id         INTEGER PRIMARY KEY,
+  title      TEXT NOT NULL,                    -- "Upstairs AC filters"
+  body       TEXT,                             -- "16x25x1, MERV 11. Two of them."
+  tags       TEXT,                             -- same free-form tags as manuals
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Phase 4
 -- CREATE VIRTUAL TABLE chunks_vec USING vec0(chunk_id INTEGER PRIMARY KEY, embedding float[384]);
 ```
@@ -166,6 +175,7 @@ The worker resets `running` jobs back to `queued` on startup (crash recovery) an
   `[12] Kitchen dishwasher — Bosch SHPM88Z75N — Installation Instructions (48 pp) (tags: under the counter, rental) — summary…`
   The user's tags, device name, room and notes are how the model maps everyday wording ("my downstairs AC") onto the right manual when two are similar, so they lead the line rather than trailing the summary.
   At about 300 manuals this is ~15k tokens; past that, swap the inline catalog for a `list_manuals(query)` tool (the code path exists from day one and is switched by catalog size).
+- The **household notes**, in full, listed before the catalog: `[note #3] Upstairs AC filters (tags: upstairs AC)` followed by the indented body. They are the household's own facts, so the model checks them first, cites them as `[note #3]`, and prefers them over a manual's generic options for what is actually installed. Past `NOTES_INLINE_CHARS` (20k) only titles are inlined and `search_notes` returns the bodies.
 
 ### 5.2 Tools exposed to the model
 
@@ -174,6 +184,7 @@ The worker resets `running` jobs back to `queued` on startup (crash recovery) an
 | `search_manuals` | `query: str`, `manual_ids?: int[]`, `limit?: int=8` | Top chunks: `{chunk_id, manual_id, manual_title, pages, heading, snippet}`. FTS5 BM25 with a heading boost; Phase 4 merges in vector results with RRF |
 | `read_pages` | `manual_id: int`, `start_page: int`, `end_page: int` (max 4 pages) | Full page text. Used for spec tables and diagrams' captions that chunking split up |
 | `list_manuals` | `query?: str` | Catalog rows. Only needed when the catalog isn't inlined |
+| `search_notes` | `query: str` | Full text of household notes matching by tags, title or body. Only needed when the notes are inlined as titles only |
 
 FTS query building: the model's query is sanitized (FTS5 syntax characters are escaped), then run as an OR of terms with phrase boosts. Model numbers are matched exactly.
 
@@ -208,6 +219,7 @@ When `LLM_TOOLS=false`, or OpenRouter reports the model doesn't support tools:
 | `/login` | Password field |
 | `/` (Chat) | Conversation list on the left, chat pane on the right, streaming answers, citation chips, "searching…" tool status lines |
 | `/manuals` | Drag-and-drop multi-upload; table of manuals with status badges (queued/processing/ready/error) refreshed by HTMX polling; filter by device/category |
+| `/notes` | Household notes (title, text, tags) that aren't tied to a manual: add, filter, edit, delete. The chat cites them as `[note #N]` |
 | `/manuals/{id}` | Editable metadata (device name, brand, model numbers, room, tags, notes), page count, Re-index / Delete buttons, embedded PDF viewer (browser native `<embed>` / `<iframe>` with `#page=N`) |
 
 Mobile-friendly layout, since the phone is what you'll have in hand standing in front of the dishwasher.

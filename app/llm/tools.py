@@ -4,8 +4,9 @@ import sqlite3
 
 from ..config import get_settings
 from ..repo import manuals as manuals_repo
+from ..repo import notes as notes_repo
 from ..search import fts
-from .prompts import catalog_line
+from .prompts import catalog_line, note_entry
 
 MAX_READ_PAGES = 4
 
@@ -55,6 +56,20 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {"query": {"type": "string"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_notes",
+            "description": "Search the household notes the user wrote themselves (filter sizes, paint colours, "
+                           "where things are, ...) by words in their title, tags or text. Returns the full text "
+                           "of matching notes. Use it when the notes in the prompt are listed by title only.",
+            "parameters": {
+                "type": "object",
+                "properties": {"query": {"type": "string", "description": "e.g. 'upstairs AC filter'"}},
+                "required": ["query"],
             },
         },
     },
@@ -108,6 +123,13 @@ def list_manuals(conn: sqlite3.Connection, query: str | None = None) -> str:
     return "\n".join(catalog_line(m) for m in rows[:100])
 
 
+def search_notes(conn: sqlite3.Connection, query: str) -> str:
+    rows = notes_repo.search(conn, query)
+    if not rows:
+        return f"No household notes matched {query!r}." if query else "There are no household notes."
+    return "\n\n".join(note_entry(n) for n in rows[:20])
+
+
 def status_text(name: str, args: dict, conn: sqlite3.Connection) -> str:
     if name == "search_manuals":
         where = ""
@@ -127,6 +149,8 @@ def status_text(name: str, args: dict, conn: sqlite3.Connection) -> str:
         return f"Reading {title}, page{'s' if s != e else ''} {s}{'–' + str(e) if s != e else ''}"
     if name == "list_manuals":
         return "Looking through the manual library"
+    if name == "search_notes":
+        return f"Checking your notes for “{args.get('query', '')}”"
     return name
 
 
@@ -144,6 +168,8 @@ def dispatch(conn: sqlite3.Connection, name: str, raw_args: str) -> tuple[str, d
             return read_pages(conn, args["manual_id"], args["start_page"], args.get("end_page")), args
         if name == "list_manuals":
             return list_manuals(conn, args.get("query")), args
+        if name == "search_notes":
+            return search_notes(conn, args.get("query", "")), args
     except (KeyError, TypeError, ValueError) as e:
         return f"Tool error: {type(e).__name__}: {e}", args
     return f"Unknown tool {name}", args

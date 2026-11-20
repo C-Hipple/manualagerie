@@ -1,0 +1,4 @@
+{# Shared by the "add note" form on /notes and the edit page. `note` is the row being edited, or none. #}
+<label>Title<input name="title" value="{{ note.title if note else '' }}" placeholder="e.g. Upstairs AC filters"></label>
+<label>Note<textarea name="body" rows="3" placeholder="e.g. 16x25x1, MERV 11. Two of them, in the hallway ceiling returns.">{{ (note.body or '') if note else '' }}</textarea></label>
+<label><span>Tags <span class="small">(optional)</span></span><input name="tags" value="{{ (note.tags or '') if note else '' }}" placeholder="comma separated, e.g. upstairs AC, HVAC"></label>

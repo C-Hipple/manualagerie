@@ -28,10 +28,11 @@
       {% if not msgs %}
       <div class="empty-state">
         <h2>What do you need to know?</h2>
-        {% if ready_count == 0 %}
-        <p>Your library is empty. <a href="/manuals">Upload some manuals</a> first.</p>
+        {% if ready_count == 0 and note_count == 0 %}
+        <p>Your library is empty. <a href="/manuals">Upload some manuals</a> or <a href="/notes">jot down a note</a> first.</p>
         {% else %}
-        <p class="muted">Searching {{ ready_count }} manual{{ 's' if ready_count != 1 }}. Try:</p>
+        <p class="muted">Searching {{ ready_count }} manual{{ 's' if ready_count != 1 }}{% if note_count %}
+          and {{ note_count }} note{{ 's' if note_count != 1 }}{% endif %}. Try:</p>
         <div class="suggestions">
           <button class="chip" data-suggest>What size is the hose connector on my dishwasher?</button>
           <button class="chip" data-suggest>How do I reset the furnace?</button>
@@ -51,4 +52,5 @@
   </main>
 </div>
 <script id="manual-titles" type="application/json">{{ titles_json | safe }}</script>
+<script id="note-titles" type="application/json">{{ note_titles_json | safe }}</script>
 {% endblock %}

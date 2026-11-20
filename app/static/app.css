@@ -77,6 +77,7 @@ button.icon { border: none; background: none; color: var(--muted); padding: .2re
 .statuses { margin: 0 0 .6rem; padding: 0; list-style: none; font-size: .85rem; color: var(--muted); }
 .statuses li::before { content: "🔎 "; }
 .statuses li.reading::before { content: "📖 "; }
+.statuses li.notes::before { content: "📝 "; }
 .thinking { color: var(--muted); font-size: .9rem; }
 .thinking::after { content: "…"; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .2; } }
@@ -117,6 +118,23 @@ table.manuals th { font-size: .8rem; text-transform: uppercase; letter-spacing: 
 .viewer iframe { width: 100%; height: 75vh; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
 
+/* notes */
+.notes-page { max-width: 760px; }
+.note-form { display: grid; gap: .6rem; margin-bottom: 1.5rem; }
+.note-form label { display: grid; gap: .2rem; font-size: .85rem; color: var(--muted); }
+.note-form label input, .note-form label textarea { color: var(--text); font-size: .95rem; }
+.note-form .row { margin-top: 0; }
+.note-filter { margin-bottom: .8rem; }
+.notes { display: grid; gap: .7rem; }
+.note { scroll-margin-top: 4rem; }
+.note:target { outline: 2px solid var(--ring); }
+.note[hidden] { display: none; }
+.note-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .8rem; }
+.note-head h2 { font-size: 1.05rem; margin: 0; overflow-wrap: anywhere; }
+.note-actions { display: flex; gap: .3rem; flex-shrink: 0; }
+.note-actions .button { font-size: .85rem; padding: .2rem .6rem; }
+.note-body { margin: .4rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* search */
 .search-form { display: grid; grid-template-columns: 1fr 260px auto; gap: .5rem; margin-bottom: 1rem; }
 .hit { margin-bottom: .7rem; }
@@ -133,6 +151,14 @@ table.manuals th { font-size: .8rem; text-transform: uppercase; letter-spacing: 
   .search-form { grid-template-columns: 1fr; }
   .msg.user { max-width: 92%; }
   .theme-select { max-width: 120px; }
+  /* Phones: icon-only brand and a compact nav that scrolls sideways if it still doesn't fit. */
+  .topbar { gap: .5rem; padding: .6rem; }
+  .brand-name { display: none; }
+  .topbar nav { min-width: 0; overflow-x: auto; scrollbar-width: none; gap: .1rem; }
+  .topbar nav > * { flex-shrink: 0; }
+  .topbar nav a { padding: .35rem .4rem; font-size: .9rem; }
+  .topbar nav .theme-select { max-width: 88px; }
+  .topbar nav button.linkish { padding: .3rem; }
 }
 
 /* row delete button */
