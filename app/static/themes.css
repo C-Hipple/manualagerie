@@ -42,6 +42,26 @@
   --chrome: #ffffff; /* browser UI colour (meta theme-color) */
 }
 
+/* Sepia — warm paper for long reading sessions */
+[data-theme="sepia"] {
+  color-scheme: light;
+  --bg: #f3e9d2;
+  --surface: #fbf4e4;
+  --surface-2: #ece0c6;
+  --text: #3d3025;
+  --muted: #77644e;
+  --border: #d9c9a8;
+  --accent: #8a5524;
+  --accent-text: #fdf7ec;
+  --accent-soft: #efe0c2;
+  --danger: #a33a24;
+  --ok: #4f6f2b;
+  --warn: #8a5b12;
+  --mark: #f2d68a;
+  --ring: #8a5524;
+  --chrome: #fbf4e4;
+}
+
 /* Dark */
 [data-theme="dark"] {
   color-scheme: dark;
