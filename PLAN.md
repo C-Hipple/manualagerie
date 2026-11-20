@@ -146,7 +146,7 @@ Triggered by an upload. Runs on the worker thread, one job at a time (fine for a
    - Size limit set by `MAX_UPLOAD_MB` (default 100).
 2. **Extract text per page** with PyMuPDF (`page.get_text("text", sort=True)`). Keep layout order so tables and spec lists stay readable.
 3. **OCR fallback:** if a page yields fewer than ~40 characters of text, render it at 300 dpi and OCR it with Tesseract (`pytesseract`, `eng` plus whatever languages `OCR_LANGS` lists). Set `pages.ocr = 1`.
-4. **Language tag** each page with `langdetect`/`lingua`. Many manuals repeat everything in EN/FR/ES. Keep all pages, but default search to `PREFERRED_LANGS` (default `en`) so results aren't three copies of the same paragraph.
+4. **Language tag** each page with `langdetect`/`lingua`. Many manuals repeat everything in EN/FR/ES. With `STRIP_OTHER_LANGS` (default on), paragraphs confidently detected as outside `PREFERRED_LANGS` (default `en`) are dropped before chunking, so results aren't three copies of the same paragraph and the LLM doesn't read translations. Page numbers are unchanged, and the original PDF keeps everything. A manual with no preferred-language text is kept whole. Search still ranks `PREFERRED_LANGS` first for whatever remains.
 5. **Chunk:** split by page, then by heading-like lines (ALL CAPS, numbered sections, larger font size taken from PyMuPDF `dict` spans), aiming for ~250–500 words with ~15% overlap. A chunk may span at most 2 pages. Record `page_start`, `page_end` and `heading`.
 6. **Index:** insert the chunks; triggers fill FTS5.
 7. **Metadata extraction (LLM):** send the filename, the first ~4 pages and any table-of-contents text to the model, with a JSON-schema response format, to get `{title, brand, model_numbers[], category, doc_type, device_name_suggestion, summary}`. Pre-fill the manual's fields with the result; the user can edit them in the UI. If the call fails, the manual is still `ready`, just with sparse metadata.
@@ -226,7 +226,8 @@ Mobile-friendly layout, since the phone is what you'll have in hand standing in 
 | `APP_URL` | — | Used for the OpenRouter referer header |
 | `MAX_UPLOAD_MB` | `100` | |
 | `OCR_LANGS` | `eng` | Tesseract language packs; the image must include them |
-| `PREFERRED_LANGS` | `en` | Search language filter |
+| `PREFERRED_LANGS` | `en` | Search language filter; languages kept at ingest |
+| `STRIP_OTHER_LANGS` | `true` | Drop other-language paragraphs at ingest |
 | `BACKUP_KEEP` | `7` | Nightly snapshots kept |
 
 ---

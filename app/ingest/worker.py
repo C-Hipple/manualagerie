@@ -11,7 +11,7 @@ from ..repo import jobs as jobs_repo
 from ..repo import manuals as manuals_repo
 from .chunk import chunk_pages
 from .extract import extract_pages
-from .lang import detect_lang
+from .lang import detect_lang, strip_other_languages
 from .metadata import extract_metadata
 
 log = logging.getLogger(__name__)
@@ -49,6 +49,10 @@ def process_manual(conn, manual_id: int) -> None:
             conn.commit()
 
     pages = extract_pages(path, s.ocr_langs, progress)
+    if s.strip_other_langs:
+        dropped = strip_other_languages(pages, set(s.preferred_lang_list))
+        if dropped:
+            log.info("manual %s: dropped %d paragraphs not in %s", manual_id, dropped, s.preferred_langs)
     for p in pages:
         p.lang = detect_lang(p.text)
     chunks = chunk_pages(pages)
