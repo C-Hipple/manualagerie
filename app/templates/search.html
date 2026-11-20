@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Search · Manualagerie{% endblock %}
+{% block content %}
+<main class="page">
+  <h1>Search</h1>
+  <p class="muted small">Direct keyword search across your manuals. This is the same search the AI uses.</p>
+  <form class="card search-form" method="get">
+    <input name="q" value="{{ q }}" placeholder="e.g. drain hose diameter" autofocus>
+    <select name="manual_id">
+      <option value="">All manuals</option>
+      {% for m in manuals %}<option value="{{ m.id }}" {{ 'selected' if manual_id == m.id }}>{{ m.title or m.filename }}</option>{% endfor %}
+    </select>
+    <button class="primary">Search</button>
+  </form>
+  {% if q %}
+  <p class="muted small">{{ hits | length }} result{{ 's' if hits | length != 1 }}</p>
+  {% for h in hits %}
+  <div class="card hit">
+    <div class="hit-head">
+      <a href="/manuals/{{ h.manual_id }}/file#page={{ h.page_start }}" target="_blank">{{ h.manual_title }} · p.{{ h.page_start }}{% if h.page_end != h.page_start %}–{{ h.page_end }}{% endif %}</a>
+      {% if h.heading %}<span class="muted small"> · {{ h.heading }}</span>{% endif %}
+      <span class="muted small"> · score {{ '%.2f' | format(-h.score) }}{% if h.lang %} · {{ h.lang }}{% endif %}</span>
+    </div>
+    <p class="snippet">{% for part in h.snippet.split('«') %}{% if loop.first %}{{ part }}{% else %}{% set bits = part.split('»', 1) %}<mark>{{ bits[0] }}</mark>{{ bits[1] if bits | length > 1 }}{% endif %}{% endfor %}</p>
+  </div>
+  {% endfor %}
+  {% endif %}
+</main>
+{% endblock %}

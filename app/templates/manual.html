@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ m.title or m.filename }} · Manualagerie{% endblock %}
+{% block content %}
+<main class="page manual-page">
+  <p><a href="/manuals">← All manuals</a></p>
+  <h1>{{ m.title or m.filename }}</h1>
+  <p class="muted small">
+    #{{ m.id }} · {{ m.filename }} · {{ m.page_count or '?' }} pages
+    {% if stats and stats.ocr %} · {{ stats.ocr }} pages OCR'd{% endif %}
+    {% if stats %} · {{ stats.chunks }} search passages{% endif %}
+    · <span class="badge {{ m.status }}">{{ status_label(m) }}</span>
+  </p>
+  {% if m.error %}<p class="error">{{ m.error }}</p>{% endif %}
+  {% if request.query_params.get('saved') %}<p class="ok">Saved.</p>{% endif %}
+
+  <div class="manual-grid">
+    <form method="post" action="/manuals/{{ m.id }}" class="card meta-form">
+      {% for key, label, ph in [
+        ('device_name', 'Device', 'e.g. Dishwasher'),
+        ('title', 'Title', ''),
+        ('brand', 'Brand', ''),
+        ('model_numbers', 'Model numbers', 'comma separated'),
+        ('category', 'Category', 'e.g. dishwasher'),
+        ('doc_type', 'Document type', 'user_manual, installation, …'),
+        ('room', 'Room', 'e.g. Kitchen'),
+      ] %}
+      <label>{{ label }}<input name="{{ key }}" value="{{ m[key] or '' }}" placeholder="{{ ph }}"></label>
+      {% endfor %}
+      <label>Summary<textarea name="summary" rows="3">{{ m.summary or '' }}</textarea></label>
+      <label>Notes <span class="muted small">(shared with the AI)</span><textarea name="notes" rows="3" placeholder="e.g. Installed 2023, under-sink water line">{{ m.notes or '' }}</textarea></label>
+      <div class="row">
+        <button class="primary">Save</button>
+      </div>
+    </form>
+    <div class="viewer">
+      <iframe src="/manuals/{{ m.id }}/file#page={{ page }}" title="PDF viewer"></iframe>
+      <div class="row">
+        <a class="button" href="/manuals/{{ m.id }}/file" target="_blank">Open PDF</a>
+        <a class="button" href="/search?manual_id={{ m.id }}">Search this manual</a>
+        <form method="post" action="/manuals/{{ m.id }}/reindex" class="inline"><button>Re-index</button></form>
+        <form method="post" action="/manuals/{{ m.id }}/delete" class="inline"
+              onsubmit="return confirm('Delete this manual permanently?')"><button class="danger">Delete</button></form>
+      </div>
+    </div>
+  </div>
+</main>
+{% endblock %}

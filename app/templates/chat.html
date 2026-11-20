@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block body_class %}chat-body{% endblock %}
+{% block head %}
+<script src="/static/vendor/marked.min.js" defer></script>
+<script src="/static/vendor/purify.min.js" defer></script>
+<script src="/static/chat.js" defer></script>
+{% endblock %}
+{% block content %}
+<div class="chat-layout">
+  <aside class="sidebar" id="sidebar">
+    <a class="button primary block" href="/">＋ New question</a>
+    <ul class="conv-list">
+      {% for c in convs %}
+      <li class="{{ 'active' if conv and conv.id == c.id }}">
+        <a href="/c/{{ c.id }}">{{ c.title or 'Untitled' }}</a>
+        <form method="post" action="/c/{{ c.id }}/delete" onsubmit="return confirm('Delete this conversation?')">
+          <button class="icon" title="Delete">×</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="muted small">No conversations yet.</li>
+      {% endfor %}
+    </ul>
+  </aside>
+  <main class="chat-main">
+    <button class="sidebar-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ History</button>
+    <div id="messages" class="messages" data-conv-id="{{ conv.id if conv else '' }}">
+      {% if not msgs %}
+      <div class="empty-state">
+        <h2>What do you need to know?</h2>
+        {% if ready_count == 0 %}
+        <p>Your library is empty. <a href="/manuals">Upload some manuals</a> first.</p>
+        {% else %}
+        <p class="muted">Searching {{ ready_count }} manual{{ 's' if ready_count != 1 }}. Try:</p>
+        <div class="suggestions">
+          <button class="chip" data-suggest>What size is the hose connector on my dishwasher?</button>
+          <button class="chip" data-suggest>How do I reset the furnace?</button>
+          <button class="chip" data-suggest>What filter does my fridge take?</button>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+      {% for m in msgs %}
+      <div class="msg {{ m.role }}" {% if m.role == 'assistant' %}data-md{% endif %}>{{ m.content }}</div>
+      {% endfor %}
+    </div>
+    <form id="composer" class="composer">
+      <textarea id="input" rows="1" placeholder="Ask about any appliance…" autofocus></textarea>
+      <button class="primary" id="send" type="submit">Ask</button>
+    </form>
+  </main>
+</div>
+<script id="manual-titles" type="application/json">{{ titles_json | safe }}</script>
+{% endblock %}

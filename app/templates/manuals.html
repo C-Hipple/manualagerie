@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Manuals · Manualagerie{% endblock %}
+{% block content %}
+<main class="page">
+  <h1>Manuals</h1>
+  <form class="card upload" hx-post="/manuals/upload" hx-encoding="multipart/form-data" hx-target="#upload-results"
+        hx-swap="innerHTML" hx-on::after-request="this.reset(); htmx.trigger('#manual-rows', 'refresh')" id="upload-form">
+    <label class="dropzone" id="dropzone">
+      <input type="file" name="files" multiple accept="application/pdf,image/*" id="file-input">
+      <span><strong>Drop PDFs here</strong> or click to choose. Photos of paper manuals work too.</span>
+      <span class="muted small" id="file-names"></span>
+    </label>
+    <div class="upload-actions">
+      <label class="small"><input type="checkbox" name="combine_images" value="true"> Combine photos into one manual</label>
+      <button class="primary">Upload</button>
+    </div>
+    <div class="htmx-indicator muted small">Uploading…</div>
+    <ul id="upload-results" class="small"></ul>
+  </form>
+
+  <table class="manuals">
+    <thead><tr><th>Device</th><th>Document</th><th class="hide-sm">Model</th><th class="hide-sm">Pages</th><th>Status</th></tr></thead>
+    <tbody id="manual-rows" hx-get="/manuals/rows" hx-trigger="refresh, every 3s" hx-swap="innerHTML">
+      {% include "_manual_rows.html" %}
+    </tbody>
+  </table>
+</main>
+<script>
+  const dz = document.getElementById('dropzone'), fi = document.getElementById('file-input');
+  const names = () => document.getElementById('file-names').textContent =
+    [...fi.files].map(f => f.name).join(', ');
+  fi.addEventListener('change', names);
+  ['dragenter', 'dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.remove('over'); }));
+  dz.addEventListener('drop', ev => { fi.files = ev.dataTransfer.files; names(); });
+</script>
+{% endblock %}

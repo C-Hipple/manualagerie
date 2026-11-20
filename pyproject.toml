@@ -1,0 +1,27 @@
+[project]
+name = "manualagerie"
+version = "0.1.0"
+description = "Ask an AI about all the manuals in your house."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "jinja2>=3.1",
+  "python-multipart>=0.0.9",
+  "pydantic-settings>=2.4",
+  "itsdangerous>=2.2",
+  "pymupdf>=1.24",
+  "pytesseract>=0.3.13",
+  "pillow>=10.4",
+  "openai>=1.50",
+  "langdetect>=1.0.9",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

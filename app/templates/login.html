@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · Manualagerie</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-body">
+  <form method="post" action="/login" class="login card">
+    <h1>📘 Manualagerie</h1>
+    <p class="muted">Every manual in the house, one question away.</p>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <input type="password" name="password" placeholder="Household password" autofocus required autocomplete="current-password">
+    <button class="primary">Sign in</button>
+  </form>
+</body>
+</html>
