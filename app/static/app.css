@@ -6,7 +6,7 @@
  */
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body { background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
+body { background-color: var(--bg); background-image: var(--bg-image); background-size: var(--bg-size); background-attachment: fixed; color: var(--text); font: 15px/1.55 var(--font); }
 a { color: var(--accent); }
 h1 { font-size: 1.5rem; margin: .2rem 0 1rem; }
 .muted { color: var(--muted); } .small { font-size: .85rem; }

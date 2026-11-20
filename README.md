@@ -25,11 +25,11 @@ Scanned pages need `tesseract` on your PATH. It is already included in the Docke
 
 ## Themes
 
-`app/static/themes.css` owns every colour; `app/static/app.css` only reads tokens, so a theme is a single token block. Light, dark, sepia and parchment (warm paper, oxblood ink, serif) ship today, and the picker in the top bar (also on the login screen) stores the choice in a `theme` cookie — `auto` follows the OS.
+`app/static/themes.css` owns every colour; `app/static/app.css` only reads tokens, so a theme is a single token block. Light, dark, sepia, parchment (warm paper, oxblood ink, serif) and blueprint ship today, and the picker in the top bar (also on the login screen) stores the choice in a `theme` cookie — `auto` follows the OS.
 
 To add a theme:
 
-1. add a `[data-theme="<id>"]` block to `app/static/themes.css` (copy the light block; every token is required)
+1. add a `[data-theme="<id>"]` block to `app/static/themes.css` (copy the light block; every colour token is required, and `--bg-image`/`--bg-size` optionally add a page texture)
 2. add `("<id>", "Label")` to `THEMES` in `app/themes.py`
 
 The picker, the cookie and the pre-paint resolution in `app/static/theme.js` are generic. `tests/test_themes.py` fails if a registered theme has no token block, or if `app.css` grows a hard-coded colour.

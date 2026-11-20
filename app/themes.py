@@ -20,6 +20,7 @@ THEMES: tuple[tuple[str, str], ...] = (
     ("sepia", "Sepia"),
     ("dark", "Dark"),
     ("parchment", "Parchment"),
+    ("blueprint", "Blueprint"),
 )
 THEME_IDS = frozenset(theme_id for theme_id, _ in THEMES)
 
