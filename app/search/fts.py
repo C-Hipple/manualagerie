@@ -40,7 +40,7 @@ def search(conn: sqlite3.Connection, query: str, manual_ids: list[int] | None = 
         params.extend(int(x) for x in manual_ids)
     sql = f"""
         SELECT c.id AS chunk_id, c.manual_id, c.page_start, c.page_end, c.heading, c.lang, c.text,
-               m.title AS manual_title, m.device_name,
+               m.title AS manual_title, m.device_name, m.tags,
                bm25(chunks_fts, 3.0, 1.0) AS score,
                snippet(chunks_fts, 1, '«', '»', '…', 24) AS snippet
         FROM chunks_fts

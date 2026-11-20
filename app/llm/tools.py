@@ -49,8 +49,9 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_manuals",
-            "description": "List manuals in the library, optionally filtered by words matching device, brand, "
-                           "model number, category or title.",
+            "description": "List manuals in the library, optionally filtered by words matching the user's tags, "
+                           "device name, room, notes, brand, model number, category or title. Use it to find "
+                           "which manual a nickname or location like \"downstairs AC\" refers to.",
             "parameters": {
                 "type": "object",
                 "properties": {"query": {"type": "string"}},
@@ -74,6 +75,10 @@ def search_manuals(conn: sqlite3.Connection, query: str, manual_ids=None, limit:
     parts = []
     for h in hits:
         head = f"{_cite(h['manual_id'], h['page_start'], h['page_end'])} {h['manual_title'] or ''}"
+        if h.get("device_name"):
+            head += f" ({h['device_name']})"
+        if h.get("tags"):
+            head += f" [tags: {h['tags']}]"
         if h["heading"]:
             head += f" — section: {h['heading']}"
         parts.append(f"{head}\n{h['text']}")

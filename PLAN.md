@@ -65,6 +65,7 @@ CREATE TABLE manuals (
   category      TEXT,                          -- dishwasher, furnace, water heater, router, ...
   doc_type      TEXT,                          -- user_manual | installation | quick_start | parts | warranty | other
   room          TEXT,                          -- optional, user-entered
+  tags          TEXT,                          -- free-form, comma-separated: "downstairs AC, shed, rental"
   summary       TEXT,                          -- 2–3 sentence LLM summary
   notes         TEXT,                          -- free-form user notes ("bought 2023, Costco")
   page_count    INTEGER,
@@ -162,7 +163,8 @@ The worker resets `running` jobs back to `queued` on startup (crash recovery) an
 
 - Role: "You answer questions about the user's home appliances and devices using ONLY their uploaded manuals. Always cite manual and page. If the manuals don't say, say so — do not guess specs."
 - A **compact catalog** of every `ready` manual, one line each, grouped by `device_name`:
-  `[12] Kitchen dishwasher — Bosch SHPM88Z75N — Installation Instructions (48 pp) — summary…`
+  `[12] Kitchen dishwasher — Bosch SHPM88Z75N — Installation Instructions (48 pp) (tags: under the counter, rental) — summary…`
+  The user's tags, device name, room and notes are how the model maps everyday wording ("my downstairs AC") onto the right manual when two are similar, so they lead the line rather than trailing the summary.
   At about 300 manuals this is ~15k tokens; past that, swap the inline catalog for a `list_manuals(query)` tool (the code path exists from day one and is switched by catalog size).
 
 ### 5.2 Tools exposed to the model
@@ -206,7 +208,7 @@ When `LLM_TOOLS=false`, or OpenRouter reports the model doesn't support tools:
 | `/login` | Password field |
 | `/` (Chat) | Conversation list on the left, chat pane on the right, streaming answers, citation chips, "searching…" tool status lines |
 | `/manuals` | Drag-and-drop multi-upload; table of manuals with status badges (queued/processing/ready/error) refreshed by HTMX polling; filter by device/category |
-| `/manuals/{id}` | Editable metadata (device name, brand, model numbers, room, notes), page count, Re-index / Delete buttons, embedded PDF viewer (browser native `<embed>` / `<iframe>` with `#page=N`) |
+| `/manuals/{id}` | Editable metadata (device name, brand, model numbers, room, tags, notes), page count, Re-index / Delete buttons, embedded PDF viewer (browser native `<embed>` / `<iframe>` with `#page=N`) |
 
 Mobile-friendly layout, since the phone is what you'll have in hand standing in front of the dishwasher.
 

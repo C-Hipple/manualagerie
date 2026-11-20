@@ -62,6 +62,27 @@ def test_delete_manual_htmx(tmp_path):
         assert f'/manuals/{m["id"]}/delete' not in c.get("/manuals/rows").text
 
 
+def test_tags_save_and_render(tmp_path):
+    from app import db
+    from app.repo import manuals as manuals_repo
+    with client() as c:
+        m = _login_and_upload(c, tmp_path, "Tagged.pdf")
+        r = c.post(f"/manuals/{m['id']}", data={"tags": " Downstairs AC ,, downstairs ac; shed "},
+                   follow_redirects=False)
+        assert r.status_code == 303
+        with db.get_conn() as conn:
+            assert manuals_repo.get(conn, m["id"])["tags"] == "Downstairs AC, shed"
+        page = c.get(f"/manuals/{m['id']}").text
+        assert 'name="tags"' in page and 'value="Downstairs AC, shed"' in page
+        rows = c.get("/manuals/rows").text
+        assert '<span class="tag">Downstairs AC</span>' in rows
+        assert '<span class="tag">shed</span>' in rows
+        # Clearing the field removes the tags again.
+        c.post(f"/manuals/{m['id']}", data={"tags": ""}, follow_redirects=False)
+        with db.get_conn() as conn:
+            assert manuals_repo.get(conn, m["id"])["tags"] is None
+
+
 def test_delete_manual_form_and_unknown(tmp_path):
     with client() as c:
         m = _login_and_upload(c, tmp_path, "Form.pdf")
