@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     max_upload_mb: int = 100
     ocr_langs: str = "eng"
     preferred_langs: str = "en"
+    strip_other_langs: bool = True
     backup_keep: int = 7
     catalog_inline_limit: int = 300
     start_worker: bool = True
