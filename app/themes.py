@@ -18,6 +18,7 @@ THEMES: tuple[tuple[str, str], ...] = (
     ("auto", "Match system"),
     ("light", "Light"),
     ("dark", "Dark"),
+    ("blueprint", "Blueprint"),
 )
 THEME_IDS = frozenset(theme_id for theme_id, _ in THEMES)
 
