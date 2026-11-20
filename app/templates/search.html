@@ -8,7 +8,7 @@
     <input name="q" value="{{ q }}" placeholder="e.g. drain hose diameter" autofocus>
     <select name="manual_id">
       <option value="">All manuals</option>
-      {% for m in manuals %}<option value="{{ m.id }}" {{ 'selected' if manual_id == m.id }}>{{ m.title or m.filename }}</option>{% endfor %}
+      {% for m in manuals %}<option value="{{ m.id }}" {{ 'selected' if manual_id == m.id }}>{{ m.title or m.filename }}{% if m.tags %} — {{ m.tags }}{% endif %}</option>{% endfor %}
     </select>
     <button class="primary">Search</button>
   </form>

@@ -42,7 +42,17 @@ def _login_and_upload(c, tmp_path, name="Fridge.pdf"):
     from app import db
     from app.repo import manuals as manuals_repo
     with db.get_conn() as conn:
-        return dict(manuals_repo.list_all(conn)[0])
+        return dict(next(m for m in manuals_repo.list_all(conn) if m["filename"] == name))
+
+
+def test_manual_tags_round_trip(tmp_path):
+    with client() as c:
+        m = _login_and_upload(c, tmp_path, "Tagged.pdf")
+        r = c.post(f"/manuals/{m['id']}", data={"tags": "downstairs AC, basement unit"},
+                   follow_redirects=False)
+        assert r.status_code == 303
+        assert 'value="downstairs AC, basement unit"' in c.get(f"/manuals/{m['id']}").text
+        assert "downstairs AC" in c.get("/manuals/rows").text
 
 
 def test_delete_manual_htmx(tmp_path):

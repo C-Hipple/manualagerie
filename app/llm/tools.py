@@ -50,7 +50,7 @@ TOOLS = [
         "function": {
             "name": "list_manuals",
             "description": "List manuals in the library, optionally filtered by words matching device, brand, "
-                           "model number, category or title.",
+                           "model number, category, title, room, or the user's own tags and notes.",
             "parameters": {
                 "type": "object",
                 "properties": {"query": {"type": "string"}},

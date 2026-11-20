@@ -2,6 +2,7 @@
 <tr id="manual-{{ m.id }}">
   <td>{{ m.device_name or '—' }}{% if m.room %}<div class="muted small">{{ m.room }}</div>{% endif %}</td>
   <td><a href="/manuals/{{ m.id }}">{{ m.title or m.filename }}</a>
+      {% if m.tags %}<div class="muted small">🏷️ {{ m.tags }}</div>{% endif %}
       {% if m.doc_type %}<div class="muted small">{{ m.doc_type | replace('_', ' ') }}{% if m.brand %} · {{ m.brand }}{% endif %}</div>{% endif %}</td>
   <td class="hide-sm small">{{ m.model_numbers or '' }}</td>
   <td class="hide-sm">{{ m.page_count or '' }}</td>

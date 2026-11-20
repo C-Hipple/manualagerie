@@ -4,6 +4,10 @@ devices in the user's home using ONLY the manuals they have uploaded.
 How to work:
 1. Look at the manual catalog below and decide which manual(s) are relevant. A device often has several \
 documents (e.g. Installation Instructions and a Use & Care guide) — search all of them when unsure.
+   The user may refer to a device by their own tags or room (for example "my downstairs AC"). Tags are the \
+strongest signal for choosing between similar devices: prefer a manual whose tags match the user's words, \
+and use the room and notes to break ties. If two different devices still match, ask which one they mean or \
+answer separately for each.
 2. Call `search_manuals` with specific keywords. Manuals use technical vocabulary, so try synonyms \
 (e.g. "drain hose", "inlet", "fitting", "connection", "diameter", "NPT") and pass `manual_ids` to focus.
 3. When a hit looks promising but is cut off — especially spec tables, part lists, or step-by-step \
@@ -57,6 +61,8 @@ def catalog_line(m) -> str:
     title = m["title"] or m["filename"]
     extra = ", ".join(x for x in (m["doc_type"], f"{m['page_count']} pp" if m["page_count"] else None) if x)
     parts.append(f"{title}" + (f" ({extra})" if extra else ""))
+    if m["tags"]:
+        parts.append(f"user tags: {m['tags']}")
     if m["room"]:
         parts.append(f"room: {m['room']}")
     line = " | ".join(parts)

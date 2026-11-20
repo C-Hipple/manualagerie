@@ -65,6 +65,7 @@ CREATE TABLE manuals (
   category      TEXT,                          -- dishwasher, furnace, water heater, router, ...
   doc_type      TEXT,                          -- user_manual | installation | quick_start | parts | warranty | other
   room          TEXT,                          -- optional, user-entered
+  tags          TEXT,                          -- user's names for the device ("downstairs AC, basement unit")
   summary       TEXT,                          -- 2–3 sentence LLM summary
   notes         TEXT,                          -- free-form user notes ("bought 2023, Costco")
   page_count    INTEGER,
@@ -206,7 +207,7 @@ When `LLM_TOOLS=false`, or OpenRouter reports the model doesn't support tools:
 | `/login` | Password field |
 | `/` (Chat) | Conversation list on the left, chat pane on the right, streaming answers, citation chips, "searching…" tool status lines |
 | `/manuals` | Drag-and-drop multi-upload; table of manuals with status badges (queued/processing/ready/error) refreshed by HTMX polling; filter by device/category |
-| `/manuals/{id}` | Editable metadata (device name, brand, model numbers, room, notes), page count, Re-index / Delete buttons, embedded PDF viewer (browser native `<embed>` / `<iframe>` with `#page=N`) |
+| `/manuals/{id}` | Editable metadata (device name, brand, model numbers, room, tags/aliases, notes), page count, Re-index / Delete buttons, embedded PDF viewer (browser native `<embed>` / `<iframe>` with `#page=N`) |
 
 Mobile-friendly layout, since the phone is what you'll have in hand standing in front of the dishwasher.
 

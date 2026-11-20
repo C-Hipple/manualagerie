@@ -2,7 +2,7 @@ import sqlite3
 
 EDITABLE_FIELDS = (
     "title", "device_name", "brand", "model_numbers", "category",
-    "doc_type", "room", "summary", "notes",
+    "doc_type", "room", "tags", "summary", "notes",
 )
 
 
@@ -71,7 +71,8 @@ def search_catalog(conn: sqlite3.Connection, query: str | None):
     terms = [t.lower() for t in query.split() if t.strip()]
     def score(r):
         hay = " ".join(str(r[k] or "") for k in (
-            "title", "device_name", "brand", "model_numbers", "category", "doc_type", "room", "summary", "filename"
+            "title", "device_name", "brand", "model_numbers", "category", "doc_type",
+            "room", "tags", "summary", "notes", "filename",
         )).lower()
         return sum(1 for t in terms if t in hay)
     scored = [(score(r), r) for r in rows]

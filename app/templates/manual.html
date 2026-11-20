@@ -23,10 +23,12 @@
         ('category', 'Category', 'e.g. dishwasher'),
         ('doc_type', 'Document type', 'user_manual, installation, …'),
         ('room', 'Room', 'e.g. Kitchen'),
+        ('tags', 'Tags / aliases', 'e.g. downstairs AC, basement unit'),
       ] %}
       <label>{{ label }}<input name="{{ key }}" value="{{ m[key] or '' }}" placeholder="{{ ph }}"></label>
       {% endfor %}
       <label>Summary<textarea name="summary" rows="3">{{ m.summary or '' }}</textarea></label>
+      <p class="muted small">Tags are the names you'd use for this device; the AI uses them to tell similar manuals apart.</p>
       <label>Notes <span class="muted small">(shared with the AI)</span><textarea name="notes" rows="3" placeholder="e.g. Installed 2023, under-sink water line">{{ m.notes or '' }}</textarea></label>
       <div class="row">
         <button class="primary">Save</button>

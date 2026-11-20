@@ -2,7 +2,9 @@ import asyncio
 import json
 
 from app.llm import agent, tools
+from app.llm.prompts import catalog_line
 from app.repo import chat as chat_repo
+from app.repo import manuals as manuals_repo
 from tests.test_ingest import _ingest
 
 
@@ -24,6 +26,24 @@ def test_tools_dispatch(conn, pdf_path):
     out, _ = tools.dispatch(conn, "read_pages", "not json")
     assert out.startswith("Invalid arguments")
     out, _ = tools.dispatch(conn, "list_manuals", json.dumps({"query": "dishwasher"}))
+    assert f"#{mid}" in out
+
+
+def test_user_tags_identify_the_right_manual(conn, pdf_path):
+    mid = _ingest(conn, pdf_path)
+    manuals_repo.update_fields(conn, mid, {
+        "device_name": "Air conditioner",
+        "tags": "downstairs AC, basement unit",
+        "notes": "The upstairs unit is a different manual.",
+    })
+    conn.commit()
+
+    line = catalog_line(manuals_repo.get(conn, mid))
+    assert f"#{mid}" in line and "downstairs AC" in line
+
+    out, _ = tools.dispatch(conn, "list_manuals", json.dumps({"query": "downstairs ac"}))
+    assert f"#{mid}" in out
+    out, _ = tools.dispatch(conn, "list_manuals", json.dumps({"query": "basement"}))
     assert f"#{mid}" in out
 
 
