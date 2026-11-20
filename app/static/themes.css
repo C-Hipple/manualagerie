@@ -81,3 +81,27 @@
   --ring: #5fb39a;
   --chrome: #1f201d;
 }
+
+/* Parchment — aged paper and oxblood ink, with a serif face so a long answer
+   reads like a printed manual. Light in scheme, warm rather than white, so it
+   sits apart from both themes above. */
+[data-theme="parchment"] {
+  color-scheme: light;
+  --font: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --shadow: 0 1px 1px rgba(90, 62, 30, .07), 0 2px 8px rgba(90, 62, 30, .06);
+  --bg: #f2e6cf;
+  --surface: #fbf3e2;
+  --surface-2: #e8d9bd;
+  --text: #3a2e20;
+  --muted: #6d5b41;
+  --border: #d6c3a1;
+  --accent: #8c3b1e;
+  --accent-text: #fff8ec;
+  --accent-soft: #f0dfc4;
+  --danger: #a3281a;
+  --ok: #3f6b31;
+  --warn: #8a5a08;
+  --mark: #f6d98a;
+  --ring: #8c3b1e;
+  --chrome: #f2e6cf;
+}
