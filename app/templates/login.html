@@ -1,12 +1,13 @@
-<!doctype html>
-<html lang="en">
+{% set theme_id = theme_of(request) %}<!doctype html>
+<html lang="en" data-theme="{{ theme_id }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sign in · Manualagerie</title>
-  <link rel="stylesheet" href="/static/app.css">
+  {% include "_theme_head.html" %}
 </head>
 <body class="login-body">
+  <div class="login-theme">{% include "_theme_picker.html" %}</div>
   <form method="post" action="/login" class="login card">
     <h1>📘 Manualagerie</h1>
     <p class="muted">Every manual in the house, one question away.</p>

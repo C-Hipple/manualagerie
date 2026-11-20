@@ -1,0 +1,9 @@
+{# Theme picker. Options come from THEMES in app/themes.py; theme.js applies and
+   persists the choice, so this needs no form and no page reload. #}
+<span class="theme-picker">
+  <select class="theme-select" data-theme-picker aria-label="Theme" title="Theme">
+    {% for id, label in themes %}
+    <option value="{{ id }}"{{ ' selected' if id == theme_id }}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</span>

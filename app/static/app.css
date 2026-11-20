@@ -1,17 +1,9 @@
-:root {
-  --bg: #f7f5f0; --surface: #ffffff; --surface-2: #f0ede6; --text: #1f1d1a; --muted: #6f6a61;
-  --border: #e2ddd3; --accent: #2f6f5e; --accent-text: #ffffff; --accent-soft: #e3efe9;
-  --danger: #b3412f; --ok: #2f7a3e; --warn: #9a6a12; --mark: #ffe9a8;
-  --radius: 10px; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 2px 8px rgba(0,0,0,.04);
-  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #161714; --surface: #1f201d; --surface-2: #2a2b27; --text: #ebe8e1; --muted: #a29d93;
-    --border: #34352f; --accent: #5fb39a; --accent-text: #0e1a16; --accent-soft: #23352f;
-    --danger: #e0715f; --ok: #6cc07d; --warn: #e0b45c; --mark: #5a4a12;
-  }
-}
+/* Manualagerie layout and components.
+ *
+ * Colours, type, radii and shadows all come from the tokens in themes.css, so
+ * nothing here should name a literal colour. If a rule needs a new value, add a
+ * token and give every theme a value for it.
+ */
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body { background: var(--bg); color: var(--text); font: 15px/1.55 var(--font); }
@@ -23,7 +15,7 @@ h1 { font-size: 1.5rem; margin: .2rem 0 1rem; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1rem; }
 button, .button {
   font: inherit; border: 1px solid var(--border); background: var(--surface); color: var(--text);
-  border-radius: 8px; padding: .5rem .9rem; cursor: pointer; text-decoration: none; display: inline-block;
+  border-radius: var(--radius-sm); padding: .5rem .9rem; cursor: pointer; text-decoration: none; display: inline-block;
 }
 button:hover, .button:hover { background: var(--surface-2); }
 button.primary, .button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
@@ -34,17 +26,23 @@ button.linkish { background: none; border: none; color: var(--muted); padding: .
 .block { display: block; text-align: center; }
 input, textarea, select {
   font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; padding: .55rem .7rem; width: 100%;
+  border-radius: var(--radius-sm); padding: .55rem .7rem; width: 100%;
 }
-input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--ring); outline-offset: -1px; }
 mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 2px; }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: .6rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 5; }
 .brand { font-weight: 700; color: var(--text); text-decoration: none; white-space: nowrap; }
 .topbar nav { display: flex; align-items: center; gap: .2rem; }
-.topbar nav a { color: var(--muted); text-decoration: none; padding: .35rem .7rem; border-radius: 7px; }
+.topbar nav a { color: var(--muted); text-decoration: none; padding: .35rem .7rem; border-radius: var(--radius-sm); }
 .topbar nav a.active { color: var(--text); background: var(--surface-2); }
+
+/* theme picker — same control in the topbar and on the login screen */
+.theme-picker { display: inline-flex; align-items: center; }
+.theme-select { width: auto; padding: .25rem .45rem; font-size: .82rem; color: var(--muted);
+  background: var(--surface-2); border-color: transparent; }
+.theme-select:hover { color: var(--text); }
 
 .page { max-width: 1100px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
 
@@ -52,13 +50,14 @@ mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 2
 .login-body { display: grid; place-items: center; padding: 1rem; }
 .login { width: min(360px, 100%); display: grid; gap: .8rem; text-align: center; }
 .login h1 { margin: 0; }
+.login-theme { position: fixed; top: .8rem; right: .8rem; }
 
 /* chat */
 .chat-body { display: flex; flex-direction: column; height: 100dvh; }
 .chat-layout { flex: 1; display: flex; min-height: 0; }
 .sidebar { width: 270px; border-right: 1px solid var(--border); padding: .8rem; overflow-y: auto; background: var(--surface); flex-shrink: 0; }
 .conv-list { list-style: none; margin: .8rem 0 0; padding: 0; }
-.conv-list li { display: flex; align-items: center; border-radius: 7px; }
+.conv-list li { display: flex; align-items: center; border-radius: var(--radius-sm); }
 .conv-list li a { flex: 1; color: var(--text); text-decoration: none; padding: .45rem .55rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .92rem; }
 .conv-list li.active, .conv-list li:hover { background: var(--surface-2); }
 .conv-list form { margin: 0; }
@@ -67,7 +66,7 @@ button.icon { border: none; background: none; color: var(--muted); padding: .2re
 .chat-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .sidebar-toggle { display: none; }
 .messages { flex: 1; overflow-y: auto; padding: 1.2rem max(1rem, calc((100% - 760px) / 2)); }
-.msg { margin: 0 0 1rem; padding: .7rem 1rem; border-radius: 12px; max-width: 100%; overflow-wrap: anywhere; }
+.msg { margin: 0 0 1rem; padding: .7rem 1rem; border-radius: var(--radius-lg); max-width: 100%; overflow-wrap: anywhere; }
 .msg.user { background: var(--accent-soft); margin-left: auto; width: fit-content; max-width: 85%; white-space: pre-wrap; }
 .msg.assistant { background: var(--surface); border: 1px solid var(--border); }
 .msg.assistant > :first-child { margin-top: 0; } .msg.assistant > :last-child { margin-bottom: 0; }
@@ -81,7 +80,7 @@ button.icon { border: none; background: none; color: var(--muted); padding: .2re
 .thinking { color: var(--muted); font-size: .9rem; }
 .thinking::after { content: "…"; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .2; } }
-a.cite { display: inline-block; font-size: .78rem; line-height: 1.3; padding: .05rem .45rem; margin: 0 .1rem; border-radius: 999px;
+a.cite { display: inline-block; font-size: .78rem; line-height: 1.3; padding: .05rem .45rem; margin: 0 .1rem; border-radius: var(--radius-pill);
   background: var(--accent-soft); color: var(--accent); text-decoration: none; border: 1px solid transparent; vertical-align: 1px; }
 a.cite:hover { border-color: var(--accent); }
 .sources { margin-top: .7rem; padding-top: .6rem; border-top: 1px dashed var(--border); font-size: .85rem; }
@@ -91,7 +90,7 @@ a.cite:hover { border-color: var(--accent); }
 .empty-state { text-align: center; margin-top: 12vh; }
 .empty-state h2 { font-size: 1.5rem; margin-bottom: .3rem; }
 .suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: 1rem; }
-.chip { border-radius: 999px; font-size: .9rem; }
+.chip { border-radius: var(--radius-pill); font-size: .9rem; }
 
 /* manuals */
 .upload { display: grid; gap: .8rem; margin-bottom: 1.5rem; }
@@ -106,7 +105,7 @@ a.cite:hover { border-color: var(--accent); }
 table.manuals { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 table.manuals th, table.manuals td { text-align: left; padding: .6rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 table.manuals th { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); background: var(--surface-2); }
-.badge { font-size: .78rem; padding: .1rem .5rem; border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
+.badge { font-size: .78rem; padding: .1rem .5rem; border-radius: var(--radius-pill); background: var(--surface-2); white-space: nowrap; }
 .badge.ready { color: var(--ok); } .badge.error { color: var(--danger); } .badge.processing, .badge.queued { color: var(--warn); }
 .manual-grid { display: grid; grid-template-columns: 340px 1fr; gap: 1rem; align-items: start; }
 .meta-form { display: grid; gap: .6rem; }
@@ -130,4 +129,5 @@ table.manuals th { font-size: .8rem; text-transform: uppercase; letter-spacing: 
   .viewer iframe { height: 60vh; }
   .search-form { grid-template-columns: 1fr; }
   .msg.user { max-width: 92%; }
+  .theme-select { max-width: 120px; }
 }
