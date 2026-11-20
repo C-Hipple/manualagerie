@@ -31,6 +31,7 @@ def html_theme(response) -> str:
     ("dark", "dark"),
     ("sepia", "sepia"),
     ("auto", "auto"),
+    ("blueprint", "blueprint"),
     ("", DEFAULT_THEME),
     ("solarized", DEFAULT_THEME),
     (None, DEFAULT_THEME),
