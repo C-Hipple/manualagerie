@@ -1,10 +1,10 @@
-<!doctype html>
-<html lang="en">
+{% set theme_id = theme_of(request) %}<!doctype html>
+<html lang="en" data-theme="{{ theme_id }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}Manualagerie{% endblock %}</title>
-  <link rel="stylesheet" href="/static/app.css">
+  {% include "_theme_head.html" %}
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📘</text></svg>">
   <script src="/static/vendor/htmx.min.js" defer></script>
   {% block head %}{% endblock %}
@@ -16,6 +16,7 @@
       <a href="/" class="{{ 'active' if request.url.path == '/' or request.url.path.startswith('/c/') }}">Ask</a>
       <a href="/manuals" class="{{ 'active' if request.url.path.startswith('/manuals') }}">Manuals</a>
       <a href="/search" class="{{ 'active' if request.url.path.startswith('/search') }}">Search</a>
+      {% include "_theme_picker.html" %}
       <form method="post" action="/logout" class="inline"><button class="linkish" title="Log out">⎋</button></form>
     </nav>
   </header>

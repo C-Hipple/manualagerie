@@ -1,0 +1,63 @@
+/* Manualagerie design tokens
+ * =========================
+ * app.css never hard-codes a colour: every rule reads the semantic custom
+ * properties defined here. A theme is therefore just one token block.
+ *
+ * Adding a theme:
+ *   1. copy the light block below under a new `[data-theme="<id>"]` selector
+ *   2. add ("<id>", "Label") to THEMES in app/themes.py
+ * The picker, the cookie and the pre-paint resolution are all generic.
+ */
+
+/* Type, shape and motion — shared by every theme. Themes may override any of
+   these inside their own block. */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
+  --radius: 10px;
+  --radius-sm: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 2px 8px rgba(0, 0, 0, .04);
+}
+
+/* Light — the reference palette. It also sits on :root so pages still render
+   sensibly when the "auto" preference has not been resolved yet (no JS). */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f5f0;
+  --surface: #ffffff;
+  --surface-2: #f0ede6;
+  --text: #1f1d1a;
+  --muted: #6f6a61;
+  --border: #e2ddd3;
+  --accent: #2f6f5e;
+  --accent-text: #ffffff;
+  --accent-soft: #e3efe9;
+  --danger: #b3412f;
+  --ok: #2f7a3e;
+  --warn: #9a6a12;
+  --mark: #ffe9a8;
+  --ring: #2f6f5e;
+  --chrome: #ffffff; /* browser UI colour (meta theme-color) */
+}
+
+/* Dark */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #161714;
+  --surface: #1f201d;
+  --surface-2: #2a2b27;
+  --text: #ebe8e1;
+  --muted: #a29d93;
+  --border: #34352f;
+  --accent: #5fb39a;
+  --accent-text: #0e1a16;
+  --accent-soft: #23352f;
+  --danger: #e0715f;
+  --ok: #6cc07d;
+  --warn: #e0b45c;
+  --mark: #5a4a12;
+  --ring: #5fb39a;
+  --chrome: #1f201d;
+}
