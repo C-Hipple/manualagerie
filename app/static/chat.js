@@ -44,6 +44,42 @@
     navigator.clipboard?.writeText(b.dataset.copy).then(() => { b.textContent = 'Copied'; });
   });
 
+  // Citation hover/focus preview: the thumbnail is only requested the first time a chip is hovered or focused.
+  let preview = null;
+  function showPreview(a) {
+    const m = /\/manuals\/(\d+)\/file#page=(\d+)/.exec(a.getAttribute('href') || '');
+    if (!m) return;
+    if (!preview) {
+      preview = document.createElement('div');
+      preview.className = 'cite-preview';
+      preview.id = 'cite-preview';
+      preview.setAttribute('role', 'tooltip');
+      preview.hidden = true;
+      preview.innerHTML = '<img alt="" decoding="async">';
+      document.body.appendChild(preview);
+    }
+    const img = preview.firstChild;
+    const src = `/manuals/${m[1]}/pages/${m[2]}/thumb.png`;
+    if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+    img.alt = `Preview of page ${m[2]}`;
+    a.setAttribute('aria-describedby', 'cite-preview');
+    preview.hidden = false;
+    const r = a.getBoundingClientRect();
+    const w = preview.offsetWidth || 320;
+    preview.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+    const h = preview.offsetHeight || 420;
+    preview.style.top = `${r.top - h - 8 >= 8 ? r.top - h - 8 : r.bottom + 8}px`;
+  }
+  function hidePreview() {
+    if (preview) preview.hidden = true;
+    document.querySelectorAll('a.cite[aria-describedby]').forEach(a => a.removeAttribute('aria-describedby'));
+  }
+  document.addEventListener('mouseover', e => { const a = e.target.closest?.('a.cite'); if (a) showPreview(a); });
+  document.addEventListener('mouseout', e => { if (e.target.closest?.('a.cite')) hidePreview(); });
+  document.addEventListener('focusin', e => { const a = e.target.closest?.('a.cite'); if (a) showPreview(a); });
+  document.addEventListener('focusout', e => { if (e.target.closest?.('a.cite')) hidePreview(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') hidePreview(); });
+
   function renderStatic() {
     document.querySelectorAll('.msg[data-md]').forEach(el => {
       el.innerHTML = renderMarkdown(el.textContent);

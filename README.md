@@ -23,6 +23,8 @@ uv run pytest
 
 Scanned pages need `tesseract` on your PATH. It is already included in the Docker image.
 
+Hovering or focusing a citation chip shows a thumbnail of the cited page, rendered with PyMuPDF on first use and cached under `/data/thumbs`.
+
 ## LLM backend: OpenRouter
 
 Manualagerie has no model of its own. Every chat answer and the metadata extraction at upload time go through [OpenRouter](https://openrouter.ai), using its OpenAI-compatible API, so any model OpenRouter hosts can be the backend.

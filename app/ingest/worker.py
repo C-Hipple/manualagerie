@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .. import db
+from .. import thumbs
 from ..config import get_settings
 from ..repo import jobs as jobs_repo
 from ..repo import manuals as manuals_repo
@@ -37,6 +38,7 @@ def process_manual(conn, manual_id: int) -> None:
     if manual is None:
         return
     path = manual_path(manual)
+    thumbs.invalidate(manual_id)
     manuals_repo.update_fields(conn, manual_id, {"status": "processing", "error": None, "pages_done": 0})
     conn.commit()
 

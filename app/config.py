@@ -42,6 +42,10 @@ class Settings(BaseSettings):
         return self.data_dir / "files"
 
     @property
+    def thumbs_dir(self) -> Path:
+        return self.data_dir / "thumbs"
+
+    @property
     def tmp_dir(self) -> Path:
         return self.data_dir / "tmp"
 
