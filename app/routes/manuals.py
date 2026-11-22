@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
-from .. import db
+from .. import db, thumbs
 from ..config import get_settings
 from ..ingest import worker
 from ..ingest.extract import IMAGE_EXTS, images_to_pdf, page_count
@@ -154,6 +154,7 @@ def manual_reindex(manual_id: int):
         _get_or_404(conn, manual_id)
         manuals_repo.update_fields(conn, manual_id, {"status": "queued", "error": None})
         jobs_repo.enqueue(conn, manual_id, "reindex")
+    thumbs.invalidate(manual_id)
     worker.wake()
     return RedirectResponse(f"/manuals/{manual_id}", status_code=303)
 
@@ -164,6 +165,7 @@ def manual_delete(request: Request, manual_id: int):
         m = _get_or_404(conn, manual_id)
         manuals_repo.delete(conn, manual_id)
     (get_settings().files_dir / f"{m['sha256']}.pdf").unlink(missing_ok=True)
+    thumbs.invalidate(manual_id)
     if request.headers.get("hx-request"):
         return Response(status_code=200)  # empty body: htmx swaps the row away
     return RedirectResponse("/manuals", status_code=303)
@@ -178,6 +180,24 @@ def manual_file(manual_id: int):
         raise HTTPException(404, "File missing from storage")
     name = m["filename"] if m["filename"].lower().endswith(".pdf") else m["filename"].rsplit(".", 1)[0] + ".pdf"
     return FileResponse(path, media_type="application/pdf", filename=name, content_disposition_type="inline")
+
+
+@router.get("/manuals/{manual_id}/pages/{n}/thumb.png")
+def manual_thumb(manual_id: int, n: int):
+    with db.get_conn() as conn:
+        m = _get_or_404(conn, manual_id)
+    pdf = get_settings().files_dir / f"{m['sha256']}.pdf"
+    if not pdf.exists():
+        raise HTTPException(404, "File missing from storage")
+    try:
+        path = thumbs.get_or_render(manual_id, pdf, n)
+    except Exception:
+        raise HTTPException(404, "Page could not be rendered")
+    if path is None:
+        raise HTTPException(404, "Page not found")
+    # Immutable per (manual, page) until the manual is deleted; private because the site is behind a login.
+    return FileResponse(path, media_type="image/png",
+                        headers={"Cache-Control": "private, max-age=86400"})
 
 
 @router.get("/search")

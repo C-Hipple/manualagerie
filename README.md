@@ -23,6 +23,8 @@ uv run pytest
 
 Scanned pages need `tesseract` on your PATH. It is already included in the Docker image.
 
+Hovering or focusing a citation chip shows a thumbnail of the cited page, rendered with PyMuPDF on first use and cached under `/data/thumbs`.
+
 ## Themes
 
 `app/static/themes.css` owns every colour; `app/static/app.css` only reads tokens, so a theme is a single token block. Light, dark, sepia, parchment (warm paper, oxblood ink, serif) and blueprint ship today, and the picker in the top bar (also on the login screen) stores the choice in a `theme` cookie — `auto` follows the OS.
