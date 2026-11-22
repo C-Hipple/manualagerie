@@ -41,10 +41,11 @@ def get(conn: sqlite3.Connection, manual_id: int):
     return conn.execute("SELECT * FROM manuals WHERE id = ?", (manual_id,)).fetchone()
 
 
-def create(conn: sqlite3.Connection, sha256: str, filename: str, file_ext: str) -> int:
+def create(conn: sqlite3.Connection, sha256: str, filename: str, file_ext: str,
+           source_url: str | None = None) -> int:
     cur = conn.execute(
-        "INSERT INTO manuals (sha256, filename, file_ext, title) VALUES (?, ?, ?, ?)",
-        (sha256, filename, file_ext, filename.rsplit(".", 1)[0]),
+        "INSERT INTO manuals (sha256, filename, file_ext, title, source_url) VALUES (?, ?, ?, ?, ?)",
+        (sha256, filename, file_ext, filename.rsplit(".", 1)[0], source_url),
     )
     return cur.lastrowid
 
