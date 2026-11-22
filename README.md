@@ -40,6 +40,24 @@ Every manual has a free-form **Tags** field next to its metadata: `downstairs AC
 
 Tags show as chips in the library list, appear in every catalog entry the model sees, and `list_manuals` ranks tag matches above words that merely show up in a summary.
 
+## Reading scans and diagrams with vision
+
+Tesseract mangles tables, wiring diagrams and exploded parts views. So after a manual's pages are extracted, the ingest worker can send the trickiest page images to the LLM (any OpenRouter model that accepts image input, the default `deepseek/deepseek-v4.1-flash-1017` included). The model returns a markdown transcription: tables come back as markdown tables, and each diagram is described with every label, part number, wire colour and measurement on it, so you can search for them and the assistant can cite them.
+
+`VISION_OCR` sets when the worker uses vision:
+
+| Value | Pages sent to the vision model |
+|---|---|
+| `off` | none: Tesseract only |
+| `fallback` (default) | scanned or photographed pages where Tesseract found nothing or very little text, had low confidence, or found only a few words on a mostly-picture page; also text-layer pages that are mostly an embedded image with a short caption |
+| `always` | every page without a text layer (all scans and photos), plus the `fallback` pages |
+
+- Pages are rendered with PyMuPDF at 150 DPI, with the longest side capped at 2000 px.
+- `OPENROUTER_VISION_MODEL` picks the model. If it is unset, `OPENROUTER_METADATA_MODEL` is used, then `OPENROUTER_MODEL`. `VISION_CONCURRENCY` (default 2) caps the number of requests in flight.
+- Requests use the shared OpenRouter client, so 429 and 5xx errors are retried with backoff. If a manual is still rate limited after those retries, its remaining pages keep their Tesseract text. Token usage is logged per page and per manual.
+- If a request fails, the page keeps its Tesseract text. A vision failure never fails the ingest. Without `OPENROUTER_API_KEY`, vision is skipped silently.
+- Each page records which method produced its text (`text`, `tesseract` or `vision`) in `pages.ocr_method`, and the manual page shows e.g. "12 pages read with vision". Click **Re-index** to re-read an existing manual.
+
 ## Deploy
 
 - Mount a persistent volume at `/data`. It holds the SQLite DB, the original PDFs, nightly backups and the auto-generated cookie secret.
