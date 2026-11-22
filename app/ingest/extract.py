@@ -8,13 +8,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+import pillow_heif
 import pymupdf as fitz
+from PIL import Image, ImageOps
+
+pillow_heif.register_heif_opener()  # lets PIL open iPhone .heic/.heif photos
 
 log = logging.getLogger(__name__)
 
 MIN_TEXT_CHARS = 40
 OCR_DPI = 300
-IMAGE_EXTS = {"png", "jpg", "jpeg", "webp", "tif", "tiff", "bmp", "gif"}
+IMAGE_EXTS = {"png", "jpg", "jpeg", "webp", "tif", "tiff", "bmp", "gif", "heic", "heif"}
 
 
 @dataclass
@@ -40,7 +44,14 @@ def images_to_pdf(image_paths: list[Path], out_path: Path) -> None:
     """Combine one or more photos into a single PDF (one image per page)."""
     out = fitz.open()
     for p in image_paths:
-        img = fitz.open(p)
+        if p.suffix.lower() in (".heic", ".heif"):
+            # MuPDF can't decode HEIF; go through PIL (honouring EXIF rotation) as JPEG.
+            buf = io.BytesIO()
+            with Image.open(p) as im:
+                ImageOps.exif_transpose(im).convert("RGB").save(buf, "JPEG", quality=92)
+            img = fitz.open("jpeg", buf.getvalue())
+        else:
+            img = fitz.open(p)
         pdf_bytes = img.convert_to_pdf()
         img.close()
         img_pdf = fitz.open("pdf", pdf_bytes)
@@ -129,8 +140,6 @@ def _paragraphs_from_plain(text: str) -> list[Paragraph]:
 
 def _ocr_page(page: "fitz.Page", langs: str) -> str:
     import pytesseract
-    from PIL import Image
-
     pix = page.get_pixmap(dpi=OCR_DPI)
     img = Image.open(io.BytesIO(pix.tobytes("png")))
     return pytesseract.image_to_string(img, lang=langs)

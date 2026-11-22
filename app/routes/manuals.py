@@ -10,6 +10,7 @@ from .. import db
 from ..config import get_settings
 from ..ingest import worker
 from ..ingest.extract import IMAGE_EXTS, images_to_pdf, page_count
+from ..ingest.fetch import FetchError, FetchTooLarge, fetch_to_file
 from ..repo import jobs as jobs_repo
 from ..repo import manuals as manuals_repo
 from ..search import fts
@@ -40,7 +41,8 @@ def _ext(name: str) -> str:
     return name.rsplit(".", 1)[-1].lower() if "." in name else ""
 
 
-def _register(conn, sha: str, pdf_path: Path, filename: str, ext: str) -> tuple[int, bool]:
+def _register(conn, sha: str, pdf_path: Path, filename: str, ext: str,
+              source_url: str | None = None) -> tuple[int, bool]:
     """Move pdf into the library and queue ingest. Returns (manual_id, created)."""
     existing = manuals_repo.get_by_sha(conn, sha)
     if existing:
@@ -48,9 +50,47 @@ def _register(conn, sha: str, pdf_path: Path, filename: str, ext: str) -> tuple[
         return existing["id"], False
     final = get_settings().files_dir / f"{sha}.pdf"
     shutil.move(str(pdf_path), final)
-    manual_id = manuals_repo.create(conn, sha, filename, ext)
+    manual_id = manuals_repo.create(conn, sha, filename, ext, source_url)
     jobs_repo.enqueue(conn, manual_id, "ingest")
     return manual_id, True
+
+
+def _add_pdf(conn, tmp: Path, sha: str, filename: str, results: list[str], source_url: str | None = None) -> None:
+    try:
+        page_count(tmp)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        results.append(f"⚠️ {filename}: not a readable PDF")
+        return
+    _, created = _register(conn, sha, tmp, filename, "pdf", source_url)
+    results.append(f"{'✅ Added' if created else '↩️ Already in library'}: {filename}")
+    conn.commit()
+
+
+def _add_images(conn, group: list[tuple[Path, str, str]], results: list[str], source_url: str | None = None) -> None:
+    """Convert one or more (tmp path, sha, filename) photos into a single PDF manual."""
+    s = get_settings()
+    pdf_tmp = s.tmp_dir / f"{uuid.uuid4().hex}.pdf"
+    try:
+        images_to_pdf([p for p, _, _ in group], pdf_tmp)
+    except Exception as e:
+        results.append(f"⚠️ Could not convert {', '.join(n for _, _, n in group)}: {e}")
+        return
+    finally:
+        for p, _, _ in group:
+            p.unlink(missing_ok=True)
+    sha = hashlib.sha256("".join(h for _, h, _ in group).encode()).hexdigest() if len(group) > 1 else group[0][1]
+    name = group[0][2] if len(group) == 1 else f"{group[0][2].rsplit('.', 1)[0]} (+{len(group) - 1} photos)"
+    _, created = _register(conn, sha, pdf_tmp, name, _ext(group[0][2]), source_url)
+    results.append(f"{'✅ Added' if created else '↩️ Already in library'}: {name}")
+    conn.commit()
+
+
+def _respond(request: Request, results: list[str]):
+    worker.wake()
+    if request.headers.get("hx-request"):
+        return HTMLResponse("".join(f"<li>{templates.env.filters['e'](r)}</li>" for r in results))
+    return RedirectResponse("/manuals", status_code=303)
 
 
 @router.post("/manuals/upload")
@@ -77,36 +117,37 @@ async def upload(request: Request, files: list[UploadFile] = File(...), combine_
             if ext in IMAGE_EXTS:
                 images.append((tmp, sha, f.filename))
                 continue
-            try:
-                page_count(tmp)
-            except Exception:
-                tmp.unlink(missing_ok=True)
-                results.append(f"⚠️ {f.filename}: not a readable PDF")
-                continue
-            mid, created = _register(conn, sha, tmp, f.filename, "pdf")
-            results.append(f"{'✅ Added' if created else '↩️ Already in library'}: {f.filename}")
-            conn.commit()
+            _add_pdf(conn, tmp, sha, f.filename, results)
 
         groups = [images] if (combine_images and images) else [[i] for i in images]
         for group in groups:
-            pdf_tmp = s.tmp_dir / f"{uuid.uuid4().hex}.pdf"
-            try:
-                images_to_pdf([p for p, _, _ in group], pdf_tmp)
-            except Exception as e:
-                results.append(f"⚠️ Could not convert {', '.join(n for _, _, n in group)}: {e}")
-                continue
-            finally:
-                for p, _, _ in group:
-                    p.unlink(missing_ok=True)
-            sha = hashlib.sha256("".join(h for _, h, _ in group).encode()).hexdigest() if len(group) > 1 else group[0][1]
-            name = group[0][2] if len(group) == 1 else f"{group[0][2].rsplit('.', 1)[0]} (+{len(group) - 1} photos)"
-            mid, created = _register(conn, sha, pdf_tmp, name, _ext(group[0][2]))
-            results.append(f"{'✅ Added' if created else '↩️ Already in library'}: {name}")
-            conn.commit()
-    worker.wake()
-    if request.headers.get("hx-request"):
-        return HTMLResponse("".join(f"<li>{templates.env.filters['e'](r)}</li>" for r in results))
-    return RedirectResponse("/manuals", status_code=303)
+            _add_images(conn, group, results)
+    return _respond(request, results)
+
+
+@router.post("/manuals/upload-url")
+async def upload_url(request: Request, url: str = Form("")):
+    s = get_settings()
+    url = url.strip()
+    results: list[str] = []
+    if not url:
+        results.append("⚠️ Paste a link to a PDF or photo")
+        return _respond(request, results)
+    tmp_name = uuid.uuid4().hex
+    try:
+        tmp, sha, ext, filename = await fetch_to_file(url, s.tmp_dir, s.max_upload_mb * 1024 * 1024, tmp_name)
+    except FetchTooLarge:
+        results.append(f"⚠️ {url}: larger than {s.max_upload_mb} MB")
+        return _respond(request, results)
+    except FetchError as e:
+        results.append(f"⚠️ {url}: {e}")
+        return _respond(request, results)
+    with db.get_conn() as conn:
+        if ext == "pdf":
+            _add_pdf(conn, tmp, sha, filename, results, url)
+        else:
+            _add_images(conn, [(tmp, sha, filename)], results, url)
+    return _respond(request, results)
 
 
 @router.get("/manuals")
