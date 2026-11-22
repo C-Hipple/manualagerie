@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     llm_tools: bool = True
     max_tool_rounds: int = 6
+    chat_images: bool = True
 
     app_password: str = ""
     auth_disabled: bool = False
@@ -52,6 +53,10 @@ class Settings(BaseSettings):
     @property
     def thumbs_dir(self) -> Path:
         return self.data_dir / "thumbs"
+
+    @property
+    def chat_images_dir(self) -> Path:
+        return self.data_dir / "chat_images"
 
     @property
     def tmp_dir(self) -> Path:

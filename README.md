@@ -66,6 +66,17 @@ Tesseract mangles tables, wiring diagrams and exploded parts views. So after a m
 - If a request fails, the page keeps its Tesseract text. A vision failure never fails the ingest. Without `OPENROUTER_API_KEY`, vision is skipped silently.
 - Each page records which method produced its text (`text`, `tesseract` or `vision`) in `pages.ocr_method`, and the manual page shows e.g. "12 pages read with vision". Click **Re-index** to re-read an existing manual.
 
+## Asking with photos
+
+Sometimes the quickest question is a picture: the rating plate behind the fridge, an `E24` blinking on the dishwasher, a part that fell off. Click **📎** next to the chat box, paste a screenshot (Ctrl/Cmd+V), or drag images onto the box. Up to 4 images per question; thumbnails with a × to remove them show before you send, and the images stay in your message bubble in the history. A photo with no text works too: the assistant describes what it sees, reads any model number or error code, and then searches the manuals for it.
+
+- PNG, JPEG, WebP, GIF and HEIC/HEIF are accepted, identified by decoding them with Pillow (the extension and Content-Type are ignored); anything else is refused with a message. Each upload is capped at 20 MB.
+- The server downscales each image to at most 1600 px on the long side, applies the EXIF rotation, and re-encodes it (screenshots as PNG, photos as JPEG, at most about 1.5 MB). Re-encoding drops EXIF, so GPS position and camera details are not kept.
+- Files are stored in `{DATA_DIR}/chat_images/`, linked to the message in the `message_images` table, served only to signed-in users at `/api/chat-images/<id>`, and deleted with their conversation. Shared answers never include them: a share is a snapshot of the answer text only.
+- Only the question you are sending carries its images to the model. Earlier turns are resent as text with an `[image previously attached]` marker in place of each image: images cost many tokens, the history keeps up to 10 turns, and the assistant's earlier answer already records what it read from the photo. To ask about a detail of an earlier photo, attach it again.
+- With `LLM_TOOLS=false` the query planner sees the text only, and the images go to the final answer call.
+- The model must accept image input; the default `deepseek/deepseek-v4.1-flash-1017` does. If the configured `OPENROUTER_MODEL` refuses images, the chat shows an inline error suggesting a vision-capable model. Set `CHAT_IMAGES=false` to hide the attach button and refuse image uploads.
+
 ## Tags
 
 Every manual has a free-form **Tags** field next to its metadata: `downstairs AC, shed, rental, Dana's`. Tags are the household's own words for a device, so when you ask *"how often should I clean the filter on my downstairs AC?"* and the library holds two air-conditioner manuals, the assistant matches your wording against the tags (and the device name, room and notes) instead of asking which one you mean.
