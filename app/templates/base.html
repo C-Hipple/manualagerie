@@ -20,6 +20,7 @@
       {% set overdue = maintenance_overdue() %}
       <a href="/maintenance" class="{{ 'active' if request.url.path.startswith('/maintenance') }}">Maintenance{% if overdue %} <span class="badge maint-overdue" title="Overdue maintenance tasks">{{ overdue }} overdue</span>{% endif %}</a>
       <a href="/shares" class="{{ 'active' if request.url.path.startswith('/shares') }}">Shares</a>
+      <a href="/settings" class="{{ 'active' if request.url.path.startswith('/settings') }}">Settings</a>
       {% include "_theme_picker.html" %}
       <form method="post" action="/logout" class="inline"><button class="linkish" title="Log out">⎋</button></form>
     </nav>

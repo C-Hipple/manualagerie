@@ -13,6 +13,7 @@ os.environ.update({
     "START_WORKER": "false",
     "OPENROUTER_API_KEY": "",
     "SECRET_KEY": "test-secret",
+    "SEMANTIC_SEARCH": "false",  # tests must never download the embedding model; test_vector opts in with a fake
 })
 
 from app import db  # noqa: E402

@@ -38,6 +38,7 @@ If your model doesn't support tool calling, set `LLM_TOOLS=false` to use the sim
 ## Deploy
 
 - Mount a persistent volume at `/data`. It holds the SQLite DB, the original PDFs, nightly backups and the auto-generated cookie secret.
+- Back up off-box with **Settings → Download export**. Importing keeps the previous library under `/data/backups/pre-import-*` (originals included), so leave room on the volume for up to 3 extra copies after imports, or delete those folders once you're happy.
 - Run **exactly one replica**: SQLite on a volume can't be shared between replicas.
 - Required env: `OPENROUTER_API_KEY` (see [LLM backend](#llm-backend-openrouter)) and `APP_PASSWORD`. Set `APP_URL=https://…` so session cookies are marked Secure.
 - Health check: `GET /healthz`.
@@ -104,6 +105,20 @@ Sometimes an answer is for someone outside the house: the plumber who needs the 
 A share is a snapshot: it doesn't change if the conversation does. Manual citations turn into plain-text sources (*"Bosch dishwasher manual, p. 12"*) because the PDFs themselves stay private, and the page has no links back into the site. The assistant only creates a share when asked, writes it to make sense on its own, and leaves household notes and other private details out unless you ask for them. Pages are marked `noindex`.
 
 The **Shares** page lists every live link with a copy button and a **Revoke** button; a revoked link returns 404. Set `APP_URL` so the links are absolute and point at your public hostname.
+
+## Export & import
+
+**Settings → Download export** (`GET /settings/export`) downloads one zip of the whole library:
+
+- `manualagerie.db`: a consistent snapshot taken with `VACUUM INTO`, never a copy of the live file (login-attempt IPs are dropped)
+- `files/…`: every stored original
+- `manifest.json`: the schema version (latest migration number), the export time and row/file counts
+
+The cookie secret, `backups/`, `tmp/` and any caches are never included. The zip is built in `/data/tmp`, streamed from disk and deleted once it has been sent, so make sure there is free space for one extra copy of the library.
+
+**Settings → Replace library** (`POST /settings/import`) **replaces** everything with an export; nothing is merged, and you have to type `REPLACE` to confirm. Before anything live changes, the archive is unpacked into `/data/tmp` and checked: the manifest must be present, the schema can't be newer than this app's, the DB must pass `PRAGMA integrity_check` and is migrated to the current schema there, paths can't be absolute or contain `..`, and total size and entry count are capped (`IMPORT_MAX_MB`, `IMPORT_MAX_FILES`). A rejected import changes nothing.
+
+Then the background worker is paused (an import waits up to two minutes for a running ingest job to finish), the current DB and files are moved to `/data/backups/pre-import-<timestamp>/`, the new files directory is renamed into place, and the DB is replaced with SQLite's backup API in a single transaction, so open connections stay valid. If anything fails partway through, the previous library is put back. The last 3 pre-import backups are kept. To undo an import, stop the app, delete `manualagerie.db-wal`/`-shm`, and copy that folder's `manualagerie.db` and `files/` back into `/data`.
 
 ## Themes
 
