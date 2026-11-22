@@ -9,17 +9,11 @@
 <div class="chat-layout">
   <aside class="sidebar" id="sidebar">
     <a class="button primary block" href="/">＋ New question</a>
-    <ul class="conv-list">
-      {% for c in convs %}
-      <li class="{{ 'active' if conv and conv.id == c.id }}">
-        <a href="/c/{{ c.id }}">{{ c.title or 'Untitled' }}</a>
-        <form method="post" action="/c/{{ c.id }}/delete" onsubmit="return confirm('Delete this conversation?')">
-          <button class="icon" title="Delete">×</button>
-        </form>
-      </li>
-      {% else %}
-      <li class="muted small">No conversations yet.</li>
-      {% endfor %}
+    <input type="search" class="conv-search" name="q" placeholder="Search conversations…" aria-label="Search conversations"
+           autocomplete="off" hx-get="/api/conversations/search" hx-trigger="input changed delay:300ms, search"
+           hx-target="#conv-list" hx-swap="innerHTML">
+    <ul class="conv-list" id="conv-list">
+      {% set hits = none %}{% include "_conv_list.html" %}
     </ul>
   </aside>
   <main class="chat-main">
