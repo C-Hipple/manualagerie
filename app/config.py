@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     preferred_langs: str = "en"
     strip_other_langs: bool = True
     backup_keep: int = 7
+    import_max_mb: int = 20480
+    import_max_files: int = 20000
     catalog_inline_limit: int = 300
     start_worker: bool = True
 

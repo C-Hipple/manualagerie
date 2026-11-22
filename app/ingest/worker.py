@@ -3,6 +3,7 @@ import logging
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -20,6 +21,9 @@ log = logging.getLogger(__name__)
 _wake = threading.Event()
 _stop = threading.Event()
 _thread: threading.Thread | None = None
+_pause_req = threading.Event()
+_paused = threading.Event()
+_resume = threading.Event()
 BACKUP_INTERVAL_S = 24 * 3600
 
 
@@ -111,6 +115,17 @@ def _loop() -> None:
         if n:
             log.info("re-queued %d interrupted jobs", n)
         while not _stop.is_set():
+            if _pause_req.is_set():
+                # Close our connection so a library import can replace the DB underneath us,
+                # then reopen and re-queue whatever the restored DB says was running.
+                conn.close()
+                _paused.set()
+                while _pause_req.is_set() and not _stop.is_set():
+                    _resume.wait(timeout=0.5)
+                _paused.clear()
+                conn = db.connect()
+                jobs_repo.recover(conn)
+                continue
             if _last_backup_age() > BACKUP_INTERVAL_S:
                 try:
                     run_backup(conn)
@@ -150,6 +165,25 @@ def start() -> None:
     _stop.clear()
     _thread = threading.Thread(target=_loop, name="ingest-worker", daemon=True)
     _thread.start()
+
+
+@contextmanager
+def paused(timeout: float = 120):
+    """Hold the worker idle (between jobs, with its DB connection closed) for the duration."""
+    deadline = time.monotonic() + 5
+    while _paused.is_set() and time.monotonic() < deadline:  # still leaving a previous pause
+        time.sleep(0.05)
+    _resume.clear()
+    _pause_req.set()
+    _wake.set()
+    try:
+        if _thread and _thread.is_alive() and not _paused.wait(timeout):
+            raise TimeoutError("the background worker is busy with a manual; try again in a minute")
+        yield
+    finally:
+        _pause_req.clear()
+        _resume.set()
+        _wake.set()
 
 
 def stop() -> None:

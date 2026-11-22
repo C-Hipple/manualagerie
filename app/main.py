@@ -11,6 +11,7 @@ from .config import get_settings
 from .ingest import worker
 from .routes import auth as auth_routes
 from .routes import chat, health, manuals
+from .routes import settings as settings_routes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("manualagerie")
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_routes.router)
     app.include_router(manuals.router)
     app.include_router(chat.router)
+    app.include_router(settings_routes.router)
     return app
 
 
