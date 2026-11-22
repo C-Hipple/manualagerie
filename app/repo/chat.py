@@ -1,5 +1,8 @@
+import html
 import json
 import sqlite3
+
+from ..search.fts import build_match_query
 
 
 def create_conversation(conn: sqlite3.Connection, title: str | None = None) -> int:
@@ -72,3 +75,41 @@ def question_before(conn: sqlite3.Connection, conv_id: int, msg_id: int) -> str 
         (conv_id, msg_id),
     ).fetchone()
     return row["content"] if row else None
+
+_HL_OPEN, _HL_CLOSE = "\x02", "\x03"
+
+
+def _render_snippet(raw: str) -> str:
+    """HTML-escape FTS snippet text, then re-enable only the <mark> markers we inserted."""
+    escaped = html.escape(raw.replace("\n", " "))
+    return escaped.replace(_HL_OPEN, "<mark>").replace(_HL_CLOSE, "</mark>")
+
+
+def search_conversations(conn: sqlite3.Connection, query: str, limit: int = 20) -> list[dict]:
+    """Conversations with a message matching `query`, each with a safe HTML snippet (only <mark> tags)."""
+    match = build_match_query(query)
+    if not match:
+        return []
+    rows = conn.execute(
+        """
+        SELECT c.id, c.title,
+               snippet(messages_fts, 0, char(2), char(3), '…', 16) AS snippet,
+               bm25(messages_fts) AS score
+        FROM messages_fts
+        JOIN messages m ON m.id = messages_fts.rowid
+        JOIN conversations c ON c.id = m.conversation_id
+        WHERE messages_fts MATCH ?
+        ORDER BY score
+        LIMIT ?
+        """,
+        (match, limit * 5),
+    ).fetchall()
+    out, seen = [], set()
+    for r in rows:  # best-ranked message per conversation
+        if r["id"] in seen:
+            continue
+        seen.add(r["id"])
+        out.append({"id": r["id"], "title": r["title"], "snippet": _render_snippet(r["snippet"])})
+        if len(out) >= limit:
+            break
+    return out

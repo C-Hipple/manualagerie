@@ -43,6 +43,17 @@ def chat_home(request: Request):
     return _page(request, None)
 
 
+@router.get("/api/conversations/search")
+def search_conversations(request: Request, q: str = ""):
+    q = q.strip()[:200]
+    with db.get_conn() as conn:
+        if not q:
+            return templates.TemplateResponse(request, "_conv_list.html", {
+                "convs": chat_repo.list_conversations(conn), "conv": None, "hits": None, "q": ""})
+        hits = chat_repo.search_conversations(conn, q)
+    return templates.TemplateResponse(request, "_conv_list.html", {"convs": [], "conv": None, "hits": hits, "q": q})
+
+
 @router.get("/c/{conv_id}")
 def chat_conv(request: Request, conv_id: int):
     return _page(request, conv_id)

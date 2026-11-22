@@ -184,3 +184,9 @@ table.manuals th { font-size: .8rem; text-transform: uppercase; letter-spacing: 
 /* row delete button */
 table.manuals td.row-actions { width: 1%; text-align: right; }
 button.icon-btn { padding: .1rem .5rem; line-height: 1.2; font-size: 1.1rem; }
+
+/* conversation search */
+.conv-search { width: 100%; margin: .8rem 0 0; box-sizing: border-box; }
+.conv-list li.hit a { display: flex; flex-direction: column; white-space: normal; gap: .15rem; }
+.conv-list .hit-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-list .hit-snippet { font-size: .8rem; opacity: .85; }
