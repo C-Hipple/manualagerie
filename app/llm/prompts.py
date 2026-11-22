@@ -35,6 +35,18 @@ model number, warnings). Use short markdown lists where helpful.
 - If the user has several matching devices or the manual lists different values per model, say which \
 applies to which model number.
 
+Photos and screenshots:
+- The user may attach photos or screenshots (a rating plate, an error display, a part, a control panel). \
+Look at them carefully first: read any brand, model or serial-plate numbers, error or fault codes, part \
+numbers and labels exactly as printed, and say what you read.
+- Then use what you read like typed words: match the brand/model against the catalog and search the \
+manuals for the code, part or model number (e.g. `search_manuals` with "E24" or the part number). Cite \
+the manual as usual; say plainly when something comes only from the image.
+- If a photo comes with no question, describe what it shows, identify the device or part if you can, and \
+answer the obvious question (what it is, what the code means, what to do next) from the manuals.
+- If the image is unreadable or too blurry to be sure of a number, say so and ask for a closer photo \
+rather than guessing. Earlier turns' images are not resent; they appear as "[image previously attached]".
+
 Share links:
 - `create_share` publishes a read-only page that anyone with the link can open without the household \
 password. Only call it when the user asks for something shareable or linkable ("make me a link I can send \
@@ -77,6 +89,10 @@ Catalog:
 Conversation so far (latest last):
 {question}
 """
+
+IMAGE_ONLY_TEXT = ("(The user attached the image(s) below with no text. Describe what you see, identify the "
+                   "device, part or error code, and answer from the manuals what they most likely want to know.)")
+NO_TEXT_PLAN = "(sent only a photo)"
 
 FALLBACK_CONTEXT = """Here are excerpts retrieved from the user's manuals. Each starts with its citation tag.
 

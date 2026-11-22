@@ -8,6 +8,14 @@
   let convId = messagesEl.dataset.convId || null;
   let busy = false;
 
+  // Attached images waiting to be sent: [{ file, url }]. Thumbnails use object URLs; the server validates.
+  const maxImages = Number(form.dataset.images || 0);
+  const tray = document.getElementById('attach-tray');
+  const attachInput = document.getElementById('attach-input');
+  let pending = [];
+  const IMAGE_NAME_RE = /\.(png|jpe?g|webp|gif|heic|heif)$/i;
+  const isImage = f => f && (f.type.startsWith('image/') || IMAGE_NAME_RE.test(f.name || ''));
+
   const CITE_RE = /\[#(\d+)\s*,?\s*pp?\.?\s*(\d+)(?:\s*[-–]\s*(\d+))?\]/g;
   const NOTE_CITE_RE = /\[note\s*#?\s*(\d+)\]/gi;
   const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -90,12 +98,90 @@
 
   const scrollDown = () => { messagesEl.scrollTop = messagesEl.scrollHeight; };
 
-  function addUser(text) {
+  function thumb(url, alt) {
+    const img = document.createElement('img');
+    img.src = url; img.alt = alt; img.decoding = 'async';
+    // Browsers other than Safari can't preview HEIC; show the label instead of a broken image.
+    img.addEventListener('error', () => img.replaceWith(Object.assign(document.createElement('span'), {
+      className: 'img-fallback', textContent: alt })), { once: true });
+    return img;
+  }
+
+  function addUser(text, imageUrls = []) {
     messagesEl.querySelector('.empty-state')?.remove();
     const d = document.createElement('div');
     d.className = 'msg user';
-    d.textContent = text;
+    if (imageUrls.length) {
+      const row = document.createElement('div');
+      row.className = 'msg-images';
+      imageUrls.forEach((u, i) => row.appendChild(thumb(u, `Attached image ${i + 1}`)));
+      d.appendChild(row);
+    }
+    d.appendChild(document.createTextNode(text));
     messagesEl.appendChild(d);
+  }
+
+  function attachNotice(text) {
+    if (!tray) return;
+    tray.querySelector('.attach-note')?.remove();
+    if (!text) return;
+    const n = document.createElement('span');
+    n.className = 'attach-note muted small';
+    n.textContent = text;
+    tray.appendChild(n);
+    tray.hidden = false;
+  }
+
+  function renderTray() {
+    if (!tray) return;
+    tray.replaceChildren();
+    pending.forEach((p, i) => {
+      const t = document.createElement('div');
+      t.className = 'attach-thumb';
+      t.appendChild(thumb(p.url, p.file.name || `Image ${i + 1}`));
+      const x = document.createElement('button');
+      x.type = 'button'; x.className = 'attach-remove'; x.textContent = '×';
+      x.title = 'Remove'; x.setAttribute('aria-label', `Remove ${p.file.name || `image ${i + 1}`}`);
+      x.addEventListener('click', () => { URL.revokeObjectURL(p.url); pending.splice(i, 1); renderTray(); input.focus(); });
+      t.appendChild(x);
+      tray.appendChild(t);
+    });
+    tray.hidden = pending.length === 0;
+  }
+
+  function addFiles(files) {
+    if (!maxImages) return;
+    const imgs = [...files].filter(isImage);
+    let skipped = files.length - imgs.length;
+    for (const f of imgs) {
+      if (pending.length >= maxImages) { skipped++; continue; }
+      pending.push({ file: f, url: URL.createObjectURL(f) });
+    }
+    renderTray();
+    if (pending.length >= maxImages && skipped) attachNotice(`Up to ${maxImages} images per question.`);
+    else if (skipped) attachNotice('Only images can be attached.');
+  }
+
+  if (maxImages && tray && attachInput) {
+    document.getElementById('attach').addEventListener('click', () => attachInput.click());
+    attachInput.addEventListener('change', () => { addFiles(attachInput.files); attachInput.value = ''; });
+    input.addEventListener('paste', e => {
+      const files = [...(e.clipboardData?.files || [])].filter(isImage);
+      if (!files.length) return;
+      e.preventDefault();  // keep the image's file name out of the textarea
+      addFiles(files);
+    });
+    const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+    ['dragenter', 'dragover'].forEach(t => form.addEventListener(t, e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); form.classList.add('over');
+    }));
+    form.addEventListener('dragleave', e => { if (!form.contains(e.relatedTarget)) form.classList.remove('over'); });
+    form.addEventListener('drop', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault(); form.classList.remove('over');
+      addFiles(e.dataTransfer.files);
+    });
   }
 
   function addAssistant() {
@@ -115,10 +201,10 @@
     return convId;
   }
 
-  async function send(text) {
-    if (busy || !text.trim()) return;
+  async function send(text, images = []) {
+    if (busy || (!text.trim() && !images.length)) return false;
     busy = true; sendBtn.disabled = true;
-    addUser(text);
+    addUser(text, images.map(p => p.url));
     const el = addAssistant();
     const body = el.querySelector('.body');
     const statuses = el.querySelector('.statuses');
@@ -126,11 +212,22 @@
     let answer = '';
     try {
       const id = await ensureConversation();
-      const r = await fetch(`/api/conversations/${id}/messages`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
-      });
+      let req = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) };
+      if (images.length) {
+        const fd = new FormData();
+        fd.append('text', text);
+        images.forEach(p => fd.append('images', p.file, p.file.name || 'image'));
+        req = { method: 'POST', body: fd };
+      }
+      const r = await fetch(`/api/conversations/${id}/messages`, req);
       if (r.status === 401) { location.href = '/login'; return; }
-      if (!r.ok || !r.body) throw new Error(`Server returned ${r.status}`);
+      if (!r.ok) {
+        const detail = await r.json().then(j => j.detail).catch(() => null);
+        el.classList.add('error');
+        body.textContent = typeof detail === 'string' ? detail : `Server returned ${r.status}`;
+        return;
+      }
+      if (!r.body) throw new Error(`Server returned ${r.status}`);
       const reader = r.body.getReader();
       const dec = new TextDecoder();
       let buf = '';
@@ -167,7 +264,7 @@
             });
             body.innerHTML = renderMarkdown(answer);
             addShareButton(el, ev.message_id);
-            maybeAddToSidebar(text);
+            maybeAddToSidebar(text.trim() || 'Photo question');
           }
           scrollDown();
         }
@@ -192,9 +289,13 @@
 
   form.addEventListener('submit', e => {
     e.preventDefault();
+    if (busy) return;
     const text = input.value;
+    const images = pending;
+    if (!text.trim() && !images.length) return;
+    pending = []; renderTray();  // the object URLs live on in the sent bubble
     input.value = ''; autosize();
-    send(text);
+    send(text, images);
   });
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }

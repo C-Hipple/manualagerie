@@ -2,7 +2,10 @@ import html
 import json
 import sqlite3
 
+from ..config import get_settings
 from ..search.fts import build_match_query
+
+IMAGE_MARKER = "[image previously attached]"
 
 
 def create_conversation(conn: sqlite3.Connection, title: str | None = None) -> int:
@@ -26,7 +29,42 @@ def touch(conn: sqlite3.Connection, conv_id: int) -> None:
 
 
 def delete_conversation(conn: sqlite3.Connection, conv_id: int) -> None:
+    """Delete the conversation, its messages and the files of any images attached to it."""
+    files = [r["filename"] for r in conn.execute(
+        "SELECT filename FROM message_images WHERE conversation_id = ?", (conv_id,))]
     conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
+    d = get_settings().chat_images_dir
+    for f in files:
+        (d / f).unlink(missing_ok=True)
+
+
+def content_text(content) -> str:
+    """The text of a message's content, which may be a string or a list of OpenAI content parts."""
+    if isinstance(content, list):
+        return "\n".join(p.get("text", "") for p in content if isinstance(p, dict) and p.get("type") == "text")
+    return content or ""
+
+
+def image_marker(n: int) -> str:
+    return IMAGE_MARKER if n == 1 else f"[{n} images previously attached]"
+
+
+def with_image_marker(text: str, n: int) -> str:
+    """Earlier turns carry a short text marker instead of their images (see README "Asking with photos")."""
+    if not n:
+        return text
+    return f"{text}\n{image_marker(n)}" if text else image_marker(n)
+
+
+def images_by_message(conn: sqlite3.Connection, conv_id: int) -> dict[int, list]:
+    out: dict[int, list] = {}
+    for r in conn.execute("SELECT * FROM message_images WHERE conversation_id = ? ORDER BY id", (conv_id,)):
+        out.setdefault(r["message_id"], []).append(r)
+    return out
+
+
+def get_image(conn: sqlite3.Connection, image_id: int):
+    return conn.execute("SELECT * FROM message_images WHERE id = ?", (image_id,)).fetchone()
 
 
 def add_message(conn: sqlite3.Connection, conv_id: int, role: str, content: str | None = None, *,
@@ -35,7 +73,7 @@ def add_message(conn: sqlite3.Connection, conv_id: int, role: str, content: str 
         "INSERT INTO messages (conversation_id, role, content, tool_calls, tool_call_id, citations, model, usage) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (
-            conv_id, role, content,
+            conv_id, role, content_text(content) if isinstance(content, list) else content,
             json.dumps(tool_calls) if tool_calls else None,
             tool_call_id,
             json.dumps(citations) if citations else None,
@@ -51,10 +89,18 @@ def get_messages(conn: sqlite3.Connection, conv_id: int):
     ).fetchall()
 
 
-def to_llm_history(rows) -> list[dict]:
-    """Convert stored rows to OpenAI-format message dicts."""
+def to_llm_history(rows, image_counts: dict[int, int] | None = None) -> list[dict]:
+    """Convert stored rows to OpenAI-format message dicts.
+
+    Stored content is always text (attached images live in message_images), so content here is a string;
+    a user turn that had images gets a text marker per image_counts ({message_id: n}) instead of the pixels.
+    """
+    image_counts = image_counts or {}
     out = []
     for r in rows:
+        if r["role"] == "user" and image_counts.get(r["id"]):
+            out.append({"role": "user", "content": with_image_marker(r["content"] or "", image_counts[r["id"]])})
+            continue
         if r["role"] == "tool":
             out.append({"role": "tool", "tool_call_id": r["tool_call_id"], "content": r["content"] or ""})
         elif r["role"] == "assistant" and r["tool_calls"]:

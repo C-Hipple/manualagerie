@@ -49,6 +49,17 @@ All settings are listed in `.env.example`.
 
 Photos (including iPhone HEIC/HEIF, via `pillow-heif`, whose wheels bundle libheif so no extra system packages are needed) are turned into PDFs and OCRed. On the Manuals page you can also paste a link to a manufacturer PDF or photo: the server downloads it (http/https only, private and internal addresses refused on every redirect, size-capped, type checked by Content-Type and file contents) and then treats it exactly like an upload, remembering the source URL.
 
+## Asking with photos
+
+Sometimes the quickest question is a picture: the rating plate behind the fridge, an `E24` blinking on the dishwasher, a part that fell off. Click **📎** next to the chat box, paste a screenshot (Ctrl/Cmd+V), or drag images onto the box. Up to 4 images per question; thumbnails with a × to remove them show before you send, and the images stay in your message bubble in the history. A photo with no text works too: the assistant describes what it sees, reads any model number or error code, and then searches the manuals for it.
+
+- PNG, JPEG, WebP, GIF and HEIC/HEIF are accepted, identified by decoding them with Pillow (the extension and Content-Type are ignored); anything else is refused with a message. Each upload is capped at 20 MB.
+- The server downscales each image to at most 1600 px on the long side, applies the EXIF rotation, and re-encodes it (screenshots as PNG, photos as JPEG, at most about 1.5 MB). Re-encoding drops EXIF, so GPS position and camera details are not kept.
+- Files are stored in `{DATA_DIR}/chat_images/`, linked to the message in the `message_images` table, served only to signed-in users at `/api/chat-images/<id>`, and deleted with their conversation. Shared answers never include them: a share is a snapshot of the answer text only.
+- Only the question you are sending carries its images to the model. Earlier turns are resent as text with an `[image previously attached]` marker in place of each image: images cost many tokens, the history keeps up to 10 turns, and the assistant's earlier answer already records what it read from the photo. To ask about a detail of an earlier photo, attach it again.
+- With `LLM_TOOLS=false` the query planner sees the text only, and the images go to the final answer call.
+- The model must accept image input; the default `deepseek/deepseek-v4.1-flash-1017` does. If the configured `OPENROUTER_MODEL` refuses images, the chat shows an inline error suggesting a vision-capable model. Set `CHAT_IMAGES=false` to hide the attach button and refuse image uploads.
+
 ## Reading scans and diagrams with vision
 
 Tesseract mangles tables, wiring diagrams and exploded parts views. So after a manual's pages are extracted, the ingest worker can send the trickiest page images to the LLM (any OpenRouter model that accepts image input, the default `deepseek/deepseek-v4.1-flash-1017` included). The model returns a markdown transcription: tables come back as markdown tables, and each diagram is described with every label, part number, wire colour and measurement on it, so you can search for them and the assistant can cite them.
