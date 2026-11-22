@@ -15,9 +15,23 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY app ./app
-
 RUN useradd --create-home --uid 1000 app && mkdir -p /data && chown app:app /data
+
+# Semantic search: bake the embedding model (BAAI/bge-small-en-v1.5, ~67 MB quantized ONNX) into
+# the image so the first start needs no network. With fastembed/onnxruntime this adds roughly
+# 230 MB to the image. If the download fails (offline build) the build still succeeds and the app
+# downloads the model into /data/models on first start, or stays keyword-only.
+# Build with --build-arg PRELOAD_EMBED_MODEL=0 to skip it.
+ARG PRELOAD_EMBED_MODEL=1
+ENV EMBED_BUNDLED_DIR=/opt/models
+RUN mkdir -p /opt/models \
+ && if [ "$PRELOAD_EMBED_MODEL" = "1" ]; then \
+      python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/opt/models')" \
+      || echo "WARNING: embedding model not pre-downloaded; it will be fetched at runtime"; \
+    fi \
+ && chown -R app:app /opt/models
+
+COPY app ./app
 USER app
 VOLUME ["/data"]
 EXPOSE 8080

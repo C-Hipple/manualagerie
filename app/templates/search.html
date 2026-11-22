@@ -3,7 +3,7 @@
 {% block content %}
 <main class="page">
   <h1>Search</h1>
-  <p class="muted small">Direct keyword search across your manuals. This is the same search the AI uses.</p>
+  <p class="muted small">Direct search across your manuals. This is the same search the AI uses. Semantic search: {{ semantic_status }}.</p>
   <form class="card search-form" method="get">
     <input name="q" value="{{ q }}" placeholder="e.g. drain hose diameter" autofocus>
     <select name="manual_id">
@@ -19,7 +19,8 @@
     <div class="hit-head">
       <a href="/manuals/{{ h.manual_id }}/file#page={{ h.page_start }}" target="_blank">{{ h.manual_title }} · p.{{ h.page_start }}{% if h.page_end != h.page_start %}–{{ h.page_end }}{% endif %}</a>
       {% if h.heading %}<span class="muted small"> · {{ h.heading }}</span>{% endif %}
-      <span class="muted small"> · score {{ '%.2f' | format(-h.score) }}{% if h.lang %} · {{ h.lang }}{% endif %}</span>
+      {% for src in h.sources %}<span class="tag source-{{ src }}" title="{{ 'rank ' ~ h.ranks[src] if h.ranks }}">{{ 'keyword' if src == 'fts' else 'semantic' }}{% if h.ranks %} #{{ h.ranks[src] }}{% endif %}</span> {% endfor %}
+      <span class="muted small">{% if h.rrf is defined %} · RRF {{ '%.4f' | format(h.rrf) }}{% if h.bm25 is not none %} · bm25 {{ '%.2f' | format(-h.bm25) }}{% endif %}{% else %} · score {{ '%.2f' | format(-h.score) }}{% endif %}{% if h.lang %} · {{ h.lang }}{% endif %}</span>
     </div>
     <p class="snippet">{% for part in h.snippet.split('«') %}{% if loop.first %}{{ part }}{% else %}{% set bits = part.split('»', 1) %}<mark>{{ bits[0] }}</mark>{{ bits[1] if bits | length > 1 }}{% endif %}{% endfor %}</p>
   </div>

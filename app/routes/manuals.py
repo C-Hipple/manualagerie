@@ -12,7 +12,7 @@ from ..ingest import worker
 from ..ingest.extract import IMAGE_EXTS, images_to_pdf, page_count
 from ..repo import jobs as jobs_repo
 from ..repo import manuals as manuals_repo
-from ..search import fts
+from ..search import hybrid, vector
 from ..web import templates
 
 router = APIRouter()
@@ -186,6 +186,7 @@ def search_page(request: Request, q: str = "", manual_id: int | None = None):
     with db.get_conn() as conn:
         manuals = manuals_repo.list_ready(conn)
         if q:
-            hits = fts.search(conn, q, [manual_id] if manual_id else None, 20, get_settings().preferred_lang_list)
+            hits = hybrid.search(conn, q, [manual_id] if manual_id else None, 20, get_settings().preferred_lang_list)
     return templates.TemplateResponse(request, "search.html",
-                                      {"q": q, "hits": hits, "manuals": manuals, "manual_id": manual_id})
+                                      {"q": q, "hits": hits, "manuals": manuals, "manual_id": manual_id,
+                                       "semantic_status": vector.status()})

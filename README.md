@@ -40,6 +40,15 @@ Every manual has a free-form **Tags** field next to its metadata: `downstairs AC
 
 Tags show as chips in the library list, appear in every catalog entry the model sees, and `list_manuals` ranks tag matches above words that merely show up in a summary.
 
+## Semantic search
+
+Keyword search (SQLite FTS5) is great at model numbers and units, but misses paraphrases: *"outlet tubing width"* shares no word with *"drain hose diameter"*. With `SEMANTIC_SEARCH=true` (the default) every chunk also gets a 384-dim embedding from the local ONNX model `BAAI/bge-small-en-v1.5` (via `fastembed`, CPU only, no API calls), stored in a `sqlite-vec` table (`chunks_vec`, migration `0011_vec.sql`).
+
+- **Search:** `search_manuals` and the `/search` page take the FTS top 30 and the vector top 30 and merge them with Reciprocal Rank Fusion (k = 60), keeping the manual filter, the preferred-language ordering and the highlighted snippets. `/search` labels each hit *keyword*, *semantic* or both, with its rank in each list.
+- **Indexing:** after a manual is chunked (upload or re-index) the worker runs an `embed` job in batches of 32. On startup, once the model has loaded, a backfill queues `embed` jobs for any ready manual with chunks missing vectors, so existing libraries are upgraded automatically. Deleting or re-indexing a manual deletes its vectors.
+- **Model cache:** the model lives in `$DATA_DIR/models` so it survives restarts. The Docker image pre-downloads it to `/opt/models` at build time (about +230 MB for the model, `onnxruntime` and friends; skip with `--build-arg PRELOAD_EMBED_MODEL=0`).
+- **Graceful degradation:** the model loads in the background and search stays keyword-only until it is ready. If `fastembed`, the model (e.g. no network to HuggingFace) or the `sqlite-vec` extension is unavailable, a warning is logged and everything keeps working on FTS alone. Set `SEMANTIC_SEARCH=false` to skip it entirely. The `/search` page shows the current state.
+
 ## Deploy
 
 - Mount a persistent volume at `/data`. It holds the SQLite DB, the original PDFs, nightly backups and the auto-generated cookie secret.

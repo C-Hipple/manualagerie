@@ -10,6 +10,7 @@ from .. import db
 from ..config import get_settings
 from ..repo import jobs as jobs_repo
 from ..repo import manuals as manuals_repo
+from ..search import vector
 from .chunk import chunk_pages
 from .extract import extract_pages
 from .lang import detect_lang, strip_other_languages
@@ -82,8 +83,17 @@ def process_manual(conn, manual_id: int) -> None:
     total_text = sum(len(p.text.strip()) for p in pages)
     error = None if total_text else "No text could be extracted (scanned PDF and OCR unavailable?)"
     manuals_repo.update_fields(conn, manual_id, {"status": "ready", "error": error})
+    if chunks and vector.available(conn):
+        jobs_repo.enqueue(conn, manual_id, "embed")  # semantic vectors follow in their own job
     conn.commit()
     log.info("manual %s ready: %d pages, %d chunks", manual_id, len(pages), len(chunks))
+
+
+def run_job(conn, job) -> None:
+    if job["kind"] == "embed":
+        vector.embed_manual(conn, job["manual_id"])
+    else:  # ingest | reindex
+        process_manual(conn, job["manual_id"])
 
 
 def run_backup(conn) -> Path:
@@ -122,7 +132,7 @@ def _loop() -> None:
                 _wake.clear()
                 continue
             try:
-                process_manual(conn, job["manual_id"])
+                run_job(conn, job)
                 jobs_repo.finish(conn, job["id"])
                 conn.commit()
             except Exception as e:
@@ -134,6 +144,9 @@ def _loop() -> None:
                 log.exception("job %s failed", job["id"])
                 conn.rollback()
                 retry = jobs_repo.fail(conn, job["id"], f"{type(e).__name__}: {e}")
+                if job["kind"] == "embed":  # the manual stays ready and keyword-searchable
+                    conn.commit()
+                    continue
                 manuals_repo.update_fields(conn, job["manual_id"], {
                     "status": "queued" if retry else "error",
                     "error": None if retry else f"{type(e).__name__}: {e}",
@@ -150,6 +163,7 @@ def start() -> None:
     _stop.clear()
     _thread = threading.Thread(target=_loop, name="ingest-worker", daemon=True)
     _thread.start()
+    vector.start_background_load()  # loads the model, then queues an embedding backfill
 
 
 def stop() -> None:
