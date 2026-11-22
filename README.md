@@ -40,6 +40,12 @@ Every manual has a free-form **Tags** field next to its metadata: `downstairs AC
 
 Tags show as chips in the library list, appear in every catalog entry the model sees, and `list_manuals` ranks tag matches above words that merely show up in a summary.
 
+## Maintenance
+
+The **Maintenance** page tracks recurring chores ("Change furnace filter, every 90 days"). Each task has an interval, a last-done date, optional notes and an optional link to a manual (the task then also shows on that manual's page; deleting the manual just unlinks it). Tasks are sorted by due date (last done + interval; a never-done task counts from the day it was added) and badged **Overdue**, **Due soon** (within 14 days) or **OK**. **Mark done** logs today's date to the history and updates last-done. The nav shows an "N overdue" badge when anything is past due.
+
+The assistant sees a summary of every task (title, status, last done), so *"when did I last change the furnace filter?"* works. Saying *"I just changed the filter"* makes it call the `log_maintenance` tool (task title or id, optional date) and confirm what it logged.
+
 ## Deploy
 
 - Mount a persistent volume at `/data`. It holds the SQLite DB, the original PDFs, nightly backups and the auto-generated cookie secret.

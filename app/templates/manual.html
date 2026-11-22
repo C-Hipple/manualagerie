@@ -46,5 +46,17 @@
       </div>
     </div>
   </div>
+  {% if tasks %}
+  <section class="card maint-tasks">
+    <h2>Maintenance</h2>
+    <ul>
+      {% for t in tasks %}
+      <li>{{ t.title }} <span class="badge maint-{{ t.status }}">{{ t.status_label }}</span>
+        <span class="muted small">due {{ t.due }}</span></li>
+      {% endfor %}
+    </ul>
+    <a href="/maintenance">Manage maintenance</a>
+  </section>
+  {% endif %}
 </main>
 {% endblock %}

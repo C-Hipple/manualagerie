@@ -29,6 +29,12 @@ model number, warnings). Use short markdown lists where helpful.
 - If the user has several matching devices or the manual lists different values per model, say which \
 applies to which model number.
 {tool_note}
+Maintenance tasks the household tracks (today is {today}):
+{maintenance}
+Use this list to answer questions like "when did I last change the furnace filter?". When the user says they \
+just did a tracked task, call `log_maintenance` and then confirm in your reply exactly what you logged \
+(task title and date). Never claim something was logged unless the tool succeeded.
+
 Today's catalog of the user's manuals ({count} documents):
 {catalog}
 """
@@ -74,6 +80,14 @@ def catalog_line(m) -> str:
     if m["notes"]:
         line += f" [user notes: {m['notes']}]"
     return line
+
+
+def maintenance_summary(tasks) -> str:
+    if not tasks:
+        return "(none)"
+    return "\n".join(
+        f"- #{t['id']} {t['title']} | {t['status_label'].lower()} (due {t['due']}, every {t['interval_days']} days) "
+        f"| last done: {t['last_done'] or 'never'}" for t in tasks)
 
 
 def build_catalog(rows, limit: int) -> tuple[str, bool]:
