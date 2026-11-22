@@ -27,10 +27,11 @@ def delete_conversation(conn: sqlite3.Connection, conv_id: int) -> None:
 
 
 def add_message(conn: sqlite3.Connection, conv_id: int, role: str, content: str | None = None, *,
-                tool_calls=None, tool_call_id=None, citations=None, model=None, usage=None) -> int:
+                tool_calls=None, tool_call_id=None, citations=None, model=None, usage=None,
+                error: bool = False) -> int:
     return conn.execute(
-        "INSERT INTO messages (conversation_id, role, content, tool_calls, tool_call_id, citations, model, usage) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO messages (conversation_id, role, content, tool_calls, tool_call_id, citations, model, usage, error) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             conv_id, role, content,
             json.dumps(tool_calls) if tool_calls else None,
@@ -38,6 +39,7 @@ def add_message(conn: sqlite3.Connection, conv_id: int, role: str, content: str 
             json.dumps(citations) if citations else None,
             model,
             json.dumps(usage) if usage else None,
+            int(error),
         ),
     ).lastrowid
 

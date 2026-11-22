@@ -42,8 +42,15 @@
       </div>
       {% endif %}
       {% for m in msgs %}
+      {% if m.error %}
+      <div class="msg assistant error">{{ m.content }}</div>
+      {% else %}
       <div class="msg {{ m.role }}" {% if m.role == 'assistant' %}data-md{% endif %}>{{ m.content }}</div>
+      {% endif %}
       {% endfor %}
+      {% if pending %}
+      <div class="msg assistant" id="pending-answer"><span class="thinking">Still working on this answer</span></div>
+      {% endif %}
     </div>
     <form id="composer" class="composer">
       <textarea id="input" rows="1" placeholder="Ask about any appliance…" autofocus></textarea>

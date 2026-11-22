@@ -1,4 +1,5 @@
 """Agentic tool loop over the manual library, streamed as events."""
+import asyncio
 import json
 import logging
 import re
@@ -14,14 +15,23 @@ from ..repo import notes as notes_repo
 from ..search import fts
 from . import tools as tools_mod
 from .client import get_async_client
-from .prompts import (FALLBACK_CONTEXT, FALLBACK_PLAN_PROMPT, SYSTEM_PROMPT, TOOL_NOTE_INLINE,
-                      TOOL_NOTE_LARGE, TOOL_NOTE_NOTES, build_catalog, build_notes)
+from .prompts import (FALLBACK_CONTEXT, FALLBACK_PLAN_PROMPT, FINAL_ANSWER_PROMPT, SYSTEM_PROMPT,
+                      TOOL_NOTE_INLINE, TOOL_NOTE_LARGE, TOOL_NOTE_NOTES, build_catalog, build_notes)
 
 log = logging.getLogger(__name__)
 
 CITATION_RE = re.compile(r"\[#(\d+)\s*,?\s*pp?\.?\s*(\d+)(?:\s*[-–]\s*(\d+))?\]")
 NOTE_CITATION_RE = re.compile(r"\[note\s*#?\s*(\d+)\]", re.IGNORECASE)
 HISTORY_TURNS = 10
+
+# Conversations with a turn still running. A turn runs as its own task, so it finishes and is saved even if
+# the browser reloads or navigates away mid-answer; the page uses this to show that an answer is on its way.
+ACTIVE: set[int] = set()
+_TASKS: set[asyncio.Task] = set()
+
+
+class EmptyAnswerError(RuntimeError):
+    """The model finished without producing any answer text."""
 
 
 def parse_citations(text: str) -> list[dict]:
@@ -58,7 +68,8 @@ def history_for_llm(conn, conv_id: int) -> list[dict]:
     """Prior user/assistant turns only (tool chatter is dropped to keep context small)."""
     rows = chat_repo.get_messages(conn, conv_id)
     msgs = [{"role": r["role"], "content": r["content"] or ""}
-            for r in rows if r["role"] == "user" or (r["role"] == "assistant" and not r["tool_calls"] and r["content"])]
+            for r in rows if r["role"] == "user"
+            or (r["role"] == "assistant" and not r["tool_calls"] and not r["error"] and r["content"])]
     return msgs[-HISTORY_TURNS * 2:]
 
 
@@ -68,7 +79,7 @@ def _is_tool_unsupported(e: Exception) -> bool:
 
 
 async def _stream_completion(messages: list[dict], *, tools: list | None, tool_choice: str | None):
-    """Yields ('token', str) and finally ('result', {content, tool_calls, usage})."""
+    """Yields ('token', str) and finally ('result', {content, tool_calls, usage, finish_reason, error})."""
     s = get_settings()
     kwargs = dict(model=s.openrouter_model, messages=messages, stream=True,
                   stream_options={"include_usage": True}, temperature=0.2)
@@ -77,12 +88,17 @@ async def _stream_completion(messages: list[dict], *, tools: list | None, tool_c
         if tool_choice:
             kwargs["tool_choice"] = tool_choice
     stream = await get_async_client().chat.completions.create(**kwargs)
-    content, calls, usage = [], {}, None
+    content, calls, usage, finish_reason, error = [], {}, None, None, None
     async for chunk in stream:
         if getattr(chunk, "usage", None):
             usage = chunk.usage.model_dump()
+        # OpenRouter reports failures that happen mid-stream (after HTTP 200) as an `error` on a chunk.
+        if getattr(chunk, "error", None):
+            error = chunk.error
         if not chunk.choices:
             continue
+        if chunk.choices[0].finish_reason:
+            finish_reason = chunk.choices[0].finish_reason
         delta = chunk.choices[0].delta
         if delta.content:
             content.append(delta.content)
@@ -101,7 +117,48 @@ async def _stream_completion(messages: list[dict], *, tools: list | None, tool_c
         if not c["id"]:
             c["id"] = f"call_{i}"
         tool_calls.append(c)
-    yield "result", {"content": "".join(content), "tool_calls": tool_calls, "usage": usage}
+    text = "".join(content)
+    if not text.strip() and not tool_calls:
+        log.warning("model returned no text and no tool calls (finish_reason=%s, error=%s, usage=%s)",
+                    finish_reason, error, usage)
+    yield "result", {"content": text, "tool_calls": tool_calls, "usage": usage,
+                     "finish_reason": finish_reason, "error": error}
+
+
+def start_turn(conv_id: int, user_text: str) -> AsyncIterator[dict]:
+    """Run a turn in a background task and stream its events.
+
+    If the consumer goes away (the browser disconnects), the turn keeps running and still saves its answer.
+    """
+    queue: asyncio.Queue = asyncio.Queue()
+
+    async def runner():
+        ACTIVE.add(conv_id)
+        try:
+            async for ev in run_turn(conv_id, user_text):
+                queue.put_nowait(ev)
+        finally:
+            ACTIVE.discard(conv_id)
+            queue.put_nowait(None)
+
+    task = asyncio.get_running_loop().create_task(runner())
+    _TASKS.add(task)
+    task.add_done_callback(_TASKS.discard)
+
+    async def events():
+        while (ev := await queue.get()) is not None:
+            yield ev
+
+    return events()
+
+
+def _save_error(conn, conv_id: int, text: str) -> None:
+    try:
+        conn.rollback()
+        chat_repo.add_message(conn, conv_id, "assistant", text, error=True, model=get_settings().openrouter_model)
+        conn.commit()
+    except Exception:
+        log.exception("could not save the error message")
 
 
 async def run_turn(conv_id: int, user_text: str) -> AsyncIterator[dict]:
@@ -143,6 +200,8 @@ async def run_turn(conv_id: int, user_text: str) -> AsyncIterator[dict]:
                     final_text = ev["text"]
                 else:
                     yield ev
+        if not (final_text or "").strip():
+            raise EmptyAnswerError()
 
         citations = parse_citations(final_text)
         known = {m["id"]: m for m in manuals_repo.list_all(conn)}
@@ -157,30 +216,38 @@ async def run_turn(conv_id: int, user_text: str) -> AsyncIterator[dict]:
                                        model=s.openrouter_model)
         conn.commit()
         yield {"type": "done", "message_id": msg_id, "citations": citations}
+    except EmptyAnswerError:
+        text = "The AI model finished without writing an answer. Try asking again, or rephrase the question."
+        _save_error(conn, conv_id, text)
+        yield {"type": "error", "text": text}
     except openai.APIError as e:
         log.exception("LLM error")
-        yield {"type": "error", "text": f"The AI service returned an error: {getattr(e, 'message', str(e))}"}
+        text = f"The AI service returned an error: {getattr(e, 'message', str(e))}"
+        _save_error(conn, conv_id, text)
+        yield {"type": "error", "text": text}
     except Exception as e:
         log.exception("chat turn failed")
-        yield {"type": "error", "text": f"Something went wrong: {type(e).__name__}: {e}"}
+        text = f"Something went wrong: {type(e).__name__}: {e}"
+        _save_error(conn, conv_id, text)
+        yield {"type": "error", "text": text}
     finally:
         conn.close()
 
 
 async def _tool_loop(conn, conv_id: int, messages: list[dict]) -> AsyncIterator[dict]:
     s = get_settings()
-    for round_no in range(s.max_tool_rounds + 1):
-        force_answer = round_no == s.max_tool_rounds
+    for _ in range(s.max_tool_rounds):
         result = None
-        async for kind, val in _stream_completion(messages, tools=tools_mod.TOOLS,
-                                                  tool_choice="none" if force_answer else "auto"):
+        async for kind, val in _stream_completion(messages, tools=tools_mod.TOOLS, tool_choice="auto"):
             if kind == "token":
                 yield {"type": "token", "text": val}
             else:
                 result = val
-        if not result["tool_calls"] or force_answer:
-            yield {"type": "final", "text": result["content"]}
-            return
+        if not result["tool_calls"]:
+            if result["content"].strip():
+                yield {"type": "final", "text": result["content"]}
+                return
+            break  # the model returned nothing at all: ask once more for a plain answer
         # The model decided to use tools: discard any preamble text it streamed.
         if result["content"]:
             yield {"type": "reset"}
@@ -198,6 +265,17 @@ async def _tool_loop(conn, conv_id: int, messages: list[dict]) -> AsyncIterator[
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": output})
             chat_repo.add_message(conn, conv_id, "tool", output, tool_call_id=call["id"])
         conn.commit()
+
+    # Out of tool rounds (or the model went silent). Asking with tool_choice="none" made DeepSeek return an
+    # empty message, so send no tools at all and tell the model plainly to answer with what it has found.
+    final_msgs = [*messages, {"role": "system", "content": FINAL_ANSWER_PROMPT}]
+    result = None
+    async for kind, val in _stream_completion(final_msgs, tools=None, tool_choice=None):
+        if kind == "token":
+            yield {"type": "token", "text": val}
+        else:
+            result = val
+    yield {"type": "final", "text": result["content"]}
 
 
 async def _fallback(conn, messages: list[dict]) -> AsyncIterator[dict]:
