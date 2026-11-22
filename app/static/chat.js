@@ -27,10 +27,28 @@
     return window.DOMPurify ? DOMPurify.sanitize(html, { ADD_ATTR: ['target'] }) : html;
   }
 
+  // "Share" under a finished answer: the server snapshots it and swaps in the public link.
+  function addShareButton(el, msgId) {
+    if (!msgId) return;
+    const d = document.createElement('div');
+    d.className = 'msg-actions';
+    d.innerHTML = `<button type="button" class="linkish" hx-post="/api/messages/${Number(msgId)}/share"
+      hx-target="this" hx-swap="outerHTML" title="Make a public, read-only link to this answer">🔗 Share</button>`;
+    el.appendChild(d);
+    window.htmx?.process(d);
+  }
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-copy]');
+    if (!b) return;
+    navigator.clipboard?.writeText(b.dataset.copy).then(() => { b.textContent = 'Copied'; });
+  });
+
   function renderStatic() {
     document.querySelectorAll('.msg[data-md]').forEach(el => {
       el.innerHTML = renderMarkdown(el.textContent);
       el.removeAttribute('data-md');
+      addShareButton(el, el.dataset.id);
     });
   }
 
@@ -100,6 +118,7 @@
             li.textContent = ev.text;
             if (ev.text.startsWith('Reading')) li.className = 'reading';
             else if (ev.text.startsWith('Checking your notes')) li.className = 'notes';
+            else if (ev.text.startsWith('Creating a share link')) li.className = 'share';
             statuses.appendChild(li);
             if (!answer) body.innerHTML = '<span class="thinking">Working</span>';
           } else if (ev.type === 'error') {
@@ -111,6 +130,7 @@
               if (c.note_id) noteTitles[c.note_id] = c.title; else titles[c.manual_id] = c.title;
             });
             body.innerHTML = renderMarkdown(answer);
+            addShareButton(el, ev.message_id);
             maybeAddToSidebar(text);
           }
           scrollDown();

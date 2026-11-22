@@ -67,7 +67,7 @@ class MessageIn(BaseModel):
 
 
 @router.post("/api/conversations/{conv_id}/messages")
-async def send_message(conv_id: int, body: MessageIn):
+async def send_message(request: Request, conv_id: int, body: MessageIn):
     text = body.text.strip()
     if not text:
         raise HTTPException(400, "Empty message")
@@ -76,7 +76,7 @@ async def send_message(conv_id: int, body: MessageIn):
             raise HTTPException(404, "Conversation not found")
 
     async def stream():
-        async for ev in agent.run_turn(conv_id, text):
+        async for ev in agent.run_turn(conv_id, text, str(request.base_url)):
             yield f"data: {json.dumps(ev)}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream",

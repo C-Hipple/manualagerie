@@ -5,6 +5,7 @@ import sqlite3
 from ..config import get_settings
 from ..repo import manuals as manuals_repo
 from ..repo import notes as notes_repo
+from ..repo import shares as shares_repo
 from ..search import fts
 from .prompts import catalog_line, note_entry
 
@@ -73,6 +74,27 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_share",
+            "description": "Publish a read-only web page that anyone with the link can open without the household "
+                           "password, and get back its URL. Only use it when the user asks for something they can "
+                           "share, send or link to. The page is a snapshot of `content` alone, so write it to stand "
+                           "on its own.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Short page title, e.g. 'Dishwasher drain hose size'"},
+                    "content": {"type": "string",
+                                "description": "The full page in markdown. Cite manuals as usual ([#12 p.3]); they "
+                                               "are shown as plain-text sources. Leave out private details (notes, "
+                                               "codes, addresses) unless the user asked for them."},
+                },
+                "required": ["title", "content"],
+            },
+        },
+    },
 ]
 
 
@@ -130,6 +152,17 @@ def search_notes(conn: sqlite3.Connection, query: str) -> str:
     return "\n\n".join(note_entry(n) for n in rows[:20])
 
 
+def create_share(conn: sqlite3.Connection, title: str, content: str, conv_id: int | None = None,
+                 base_url: str | None = None) -> str:
+    if not str(content or "").strip():
+        return "Nothing to share: `content` is empty."
+    _, token = shares_repo.create(conn, title, content, conversation_id=conv_id)
+    url = shares_repo.public_url(token, base_url)
+    return (f"Created a public, read-only page: {url}\n"
+            f"Give the user this link as a markdown link, e.g. [{shares_repo.clean_title(title)}]({url}). Anyone "
+            "with the link can open it without the household password; it can be revoked on the Shares page.")
+
+
 def status_text(name: str, args: dict, conn: sqlite3.Connection) -> str:
     if name == "search_manuals":
         where = ""
@@ -151,10 +184,13 @@ def status_text(name: str, args: dict, conn: sqlite3.Connection) -> str:
         return "Looking through the manual library"
     if name == "search_notes":
         return f"Checking your notes for “{args.get('query', '')}”"
+    if name == "create_share":
+        return f"Creating a share link for “{shares_repo.clean_title(args.get('title'))}”"
     return name
 
 
-def dispatch(conn: sqlite3.Connection, name: str, raw_args: str) -> tuple[str, dict]:
+def dispatch(conn: sqlite3.Connection, name: str, raw_args: str, *, conv_id: int | None = None,
+             base_url: str | None = None) -> tuple[str, dict]:
     try:
         args = json.loads(raw_args or "{}")
         if not isinstance(args, dict):
@@ -170,6 +206,8 @@ def dispatch(conn: sqlite3.Connection, name: str, raw_args: str) -> tuple[str, d
             return list_manuals(conn, args.get("query")), args
         if name == "search_notes":
             return search_notes(conn, args.get("query", "")), args
+        if name == "create_share":
+            return create_share(conn, args.get("title", ""), args["content"], conv_id, base_url), args
     except (KeyError, TypeError, ValueError) as e:
         return f"Tool error: {type(e).__name__}: {e}", args
     return f"Unknown tool {name}", args

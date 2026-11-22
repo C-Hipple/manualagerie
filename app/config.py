@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     app_password: str = ""
     auth_disabled: bool = False
     secret_key: str = ""
-    app_url: str = "http://localhost:8080"
+    app_url: str = ""
 
     data_dir: Path = Path("/data")
     max_upload_mb: int = 100

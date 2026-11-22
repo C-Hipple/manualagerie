@@ -1,0 +1,29 @@
+{# Public, logged-out page for one share. Stands alone on purpose: no nav, no base layout,
+   nothing that links into the private site (manual PDFs, notes, chat). #}
+{% set theme_id = theme_of(request) %}<!doctype html>
+<html lang="en" data-theme="{{ theme_id }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <meta name="referrer" content="no-referrer">
+  <title>{{ share.title }}</title>
+  {% include "_theme_head.html" %}
+  <script src="/static/vendor/marked.min.js" defer></script>
+  <script src="/static/vendor/purify.min.js" defer></script>
+  <script src="/static/share.js" defer></script>
+</head>
+<body>
+  <main class="page share-page">
+    <h1>{{ share.title }}</h1>
+    <article class="card share-body" data-md>{{ share.body }}</article>
+    {% if citations %}
+    <section class="share-sources">
+      <h2>Sources</h2>
+      <ul>{% for c in citations %}<li>{{ c }}</li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+    <p class="muted small">Shared from a household manual library on {{ share.created_at[:10] }}.</p>
+  </main>
+</body>
+</html>

@@ -1,4 +1,5 @@
 import hmac
+import re
 import secrets
 import time
 
@@ -10,6 +11,8 @@ from . import db
 from .config import get_settings
 
 PUBLIC_PREFIXES = ("/login", "/healthz", "/static/")
+# Public share pages: exactly /s/<token>, nothing below or beside it.
+PUBLIC_SHARE_RE = re.compile(r"/s/[A-Za-z0-9_-]+")
 WINDOW_S = 15 * 60
 MAX_FAILURES = 10
 
@@ -40,7 +43,7 @@ def is_authed(request: Request) -> bool:
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if is_authed(request) or path.startswith(PUBLIC_PREFIXES):
+        if is_authed(request) or path.startswith(PUBLIC_PREFIXES) or PUBLIC_SHARE_RE.fullmatch(path):
             return await call_next(request)
         if path.startswith("/api/") or request.headers.get("hx-request"):
             return JSONResponse({"error": "not authenticated"}, status_code=401)

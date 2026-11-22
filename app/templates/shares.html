@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Shares · Manualagerie{% endblock %}
+{% block content %}
+<main class="page shares-page">
+  <h1>Shares</h1>
+  <p class="muted">Public, read-only pages made from answers. Anyone with a link can open it without the household
+    password. Revoke a link to turn it off for good.</p>
+  <div class="shares" id="shares">
+    {% for s, url in shares %}
+    <article class="card share-row" id="share-{{ s.id }}">
+      <div class="note-head">
+        <h2>{{ s.title }}</h2>
+        <div class="note-actions">
+          <button type="button" class="danger" hx-post="/shares/{{ s.id }}/revoke" hx-target="#share-{{ s.id }}"
+                  hx-swap="outerHTML" hx-confirm="Revoke the link to “{{ s.title }}”? It will stop working.">Revoke</button>
+        </div>
+      </div>
+      <p class="small"><span class="muted">{{ s.created_at }} UTC ·</span>
+        {% include "_share_link.html" %}</p>
+    </article>
+    {% else %}
+    <p class="muted">No shares yet. Use <strong>Share</strong> under an answer, or ask the assistant for a link.</p>
+    {% endfor %}
+  </div>
+</main>
+<script>
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-copy]');
+    if (!b) return;
+    navigator.clipboard?.writeText(b.dataset.copy).then(() => { b.textContent = 'Copied'; });
+  });
+</script>
+{% endblock %}

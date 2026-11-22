@@ -237,7 +237,7 @@ Mobile-friendly layout, since the phone is what you'll have in hand standing in 
 | `APP_PASSWORD` | — (required) | Household login |
 | `SECRET_KEY` | — (required) | Cookie signing |
 | `DATA_DIR` | `/data` | Volume mount |
-| `APP_URL` | — | Used for the OpenRouter referer header |
+| `APP_URL` | — | OpenRouter referer header, Secure cookies, absolute share links |
 | `MAX_UPLOAD_MB` | `100` | |
 | `OCR_LANGS` | `eng` | Tesseract language packs; the image must include them |
 | `PREFERRED_LANGS` | `en` | Search language filter; languages kept at ingest |

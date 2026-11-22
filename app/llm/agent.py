@@ -104,8 +104,11 @@ async def _stream_completion(messages: list[dict], *, tools: list | None, tool_c
     yield "result", {"content": "".join(content), "tool_calls": tool_calls, "usage": usage}
 
 
-async def run_turn(conv_id: int, user_text: str) -> AsyncIterator[dict]:
-    """Persist the user message, run the agent, persist the answer. Yields UI events."""
+async def run_turn(conv_id: int, user_text: str, base_url: str | None = None) -> AsyncIterator[dict]:
+    """Persist the user message, run the agent, persist the answer. Yields UI events.
+
+    base_url is the request's own URL, used for share links when APP_URL isn't set.
+    """
     s = get_settings()
     conn = db.connect()
     try:
@@ -127,7 +130,7 @@ async def run_turn(conv_id: int, user_text: str) -> AsyncIterator[dict]:
         final_text = None
         if s.llm_tools:
             try:
-                async for ev in _tool_loop(conn, conv_id, messages):
+                async for ev in _tool_loop(conn, conv_id, messages, base_url):
                     if ev["type"] == "final":
                         final_text = ev["text"]
                     else:
@@ -167,7 +170,7 @@ async def run_turn(conv_id: int, user_text: str) -> AsyncIterator[dict]:
         conn.close()
 
 
-async def _tool_loop(conn, conv_id: int, messages: list[dict]) -> AsyncIterator[dict]:
+async def _tool_loop(conn, conv_id: int, messages: list[dict], base_url: str | None = None) -> AsyncIterator[dict]:
     s = get_settings()
     for round_no in range(s.max_tool_rounds + 1):
         force_answer = round_no == s.max_tool_rounds
@@ -194,7 +197,8 @@ async def _tool_loop(conn, conv_id: int, messages: list[dict]) -> AsyncIterator[
             except Exception:
                 status = name
             yield {"type": "status", "text": status}
-            output, _ = tools_mod.dispatch(conn, name, call["function"]["arguments"])
+            output, _ = tools_mod.dispatch(conn, name, call["function"]["arguments"], conv_id=conv_id,
+                                           base_url=base_url)
             messages.append({"role": "tool", "tool_call_id": call["id"], "content": output})
             chat_repo.add_message(conn, conv_id, "tool", output, tool_call_id=call["id"])
         conn.commit()

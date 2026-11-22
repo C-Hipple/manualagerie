@@ -59,3 +59,16 @@ def to_llm_history(rows) -> list[dict]:
         else:
             out.append({"role": r["role"], "content": r["content"] or ""})
     return out
+
+
+def get_message(conn: sqlite3.Connection, msg_id: int):
+    return conn.execute("SELECT * FROM messages WHERE id = ?", (msg_id,)).fetchone()
+
+
+def question_before(conn: sqlite3.Connection, conv_id: int, msg_id: int) -> str | None:
+    """The user message an assistant answer replied to."""
+    row = conn.execute(
+        "SELECT content FROM messages WHERE conversation_id = ? AND id < ? AND role = 'user' ORDER BY id DESC LIMIT 1",
+        (conv_id, msg_id),
+    ).fetchone()
+    return row["content"] if row else None
