@@ -61,6 +61,36 @@ Every manual has a free-form **Tags** field next to its metadata: `downstairs AC
 
 Tags show as chips in the library list, appear in every catalog entry the model sees, and `list_manuals` ranks tag matches above words that merely show up in a summary.
 
+## Evaluating answer quality
+
+`tests/evals/questions.yaml` holds questions with the manual and page that should answer each one. The shipped entries are **examples**; replace them with about 20 real questions about your own manuals. The file's header documents every field:
+
+- `question`: phrased as you would ask it in chat.
+- `manual`: a substring of the manual's title or original filename.
+- `pages`: optional; one page, a range (`"12-14"`) or a list. These are PDF page numbers, as shown in citations.
+- `answer_must_contain`: optional strings the answer must include (`"5/8"`, `"20 psi"`).
+- `expect_not_found: true`: for questions your manuals do not answer; the assistant should say so rather than guess.
+
+Run it against your real library (`DATA_DIR`, e.g. `DATA_DIR=./data` locally):
+
+```bash
+uv run python scripts/eval.py --retrieval-only   # search only: no LLM, no cost
+uv run python scripts/eval.py                    # also runs the real agent (needs OPENROUTER_API_KEY)
+uv run python scripts/eval.py --limit 5 --k 8    # first 5 questions, top-8 retrieval
+```
+
+Reading the results:
+
+- **Retrieval hit rate**: the share of questions where the expected manual (and page, if given) appears in the top-k `search_manuals` results for the question text. A miss means the right passage never reached the model.
+- **Answer pass rate**: the share of questions where the agent's citations include the expected manual/page, every `answer_must_contain` string appears, and `expect_not_found` questions get a "not found" style answer. Retrieval hit but answer fail points at the prompt or model; retrieval miss points at chunking or search.
+- A table is printed and the full JSON (answers, citations, per-question detail) is saved to `{DATA_DIR}/evals/eval-<timestamp>.json` so you can compare runs. Answer checks run in throwaway conversations that are deleted afterwards.
+
+Tuning loop: record a baseline, change one thing, and re-run.
+
+- **Chunk size**: `TARGET_WORDS` in `app/ingest/chunk.py`. Re-ingest your manuals after changing it, then run `--retrieval-only`. If answers are split across chunks, go larger; if the right page is buried in a long chunk, go smaller.
+- **Heading boost**: the `bm25(chunks_fts, 3.0, 1.0)` weights in `app/search/fts.py` (heading, then text). Raise the first number if section titles should matter more, lower it if generic headings crowd out real matches. No re-ingest needed.
+- **Prompt**: edit `app/llm/prompts.py` and run the full eval; watch for failures where retrieval hit (wrong citation, missing value, guessing instead of "not found").
+
 ## Photos and links
 
 Photos (including iPhone HEIC/HEIF, via `pillow-heif`, whose wheels bundle libheif so no extra system packages are needed) are turned into PDFs and OCRed. On the Manuals page you can also paste a link to a manufacturer PDF or photo: the server downloads it (http/https only, private and internal addresses refused on every redirect, size-capped, type checked by Content-Type and file contents) and then treats it exactly like an upload, remembering the source URL.
