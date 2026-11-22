@@ -237,17 +237,22 @@ def test_older_schema_is_migrated(c, tmp_path):
         snap = tmp_path / "older.db"
         snap.write_bytes(zf.read("manualagerie.db"))
         manifest = json.loads(zf.read("manifest.json"))
+    # A genuinely older database: only migrations 0001-0003 applied, so every later migration must replay on import.
+    snap.unlink()
     conn = sqlite3.connect(snap)
-    conn.execute("ALTER TABLE pages DROP COLUMN ocr_method")  # undo 0010_page_ocr_method
-    conn.execute("PRAGMA user_version = 9")
+    for f in sorted(db.MIGRATIONS_DIR.glob("*.sql")):
+        if int(f.name.split("_", 1)[0]) <= 3:
+            conn.executescript(f.read_text())
+    conn.execute("PRAGMA user_version = 3")
     conn.commit()
     conn.close()
-    manifest["schema_version"] = 9
+    manifest["schema_version"] = 3
     r = _import(c, _rezip(data, replace={"manualagerie.db": snap.read_bytes(), "manifest.json": json.dumps(manifest)}))
     assert r.status_code == 200, r.text
     with db.get_conn() as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == library_io.schema_version()
-        conn.execute("SELECT ocr_method FROM pages").fetchall()
+        conn.execute("SELECT ocr_method FROM pages").fetchall()  # added by 0010
+        conn.execute("SELECT count(*) FROM shares").fetchall()  # added by 0004
 
 
 def test_missing_manifest_and_caps(c, tmp_path, monkeypatch):
