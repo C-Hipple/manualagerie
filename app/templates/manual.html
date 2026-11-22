@@ -7,6 +7,7 @@
   <p class="muted small">
     #{{ m.id }} · {{ m.filename }} · {{ m.page_count or '?' }} pages
     {% if stats and stats.ocr %} · {{ stats.ocr }} pages OCR'd{% endif %}
+    {% if stats and stats.vision %} · {{ stats.vision }} page{{ 's' if stats.vision != 1 }} read with vision{% endif %}
     {% if stats %} · {{ stats.chunks }} search passages{% endif %}
     · <span class="badge {{ m.status }}">{{ status_label(m) }}</span>
   </p>

@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -10,6 +11,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = "deepseek/deepseek-v4.1-flash-1017"
     openrouter_metadata_model: str = ""
+    openrouter_vision_model: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     llm_tools: bool = True
     max_tool_rounds: int = 6
@@ -22,6 +24,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("/data")
     max_upload_mb: int = 100
     ocr_langs: str = "eng"
+    vision_ocr: Literal["off", "fallback", "always"] = "fallback"
+    vision_concurrency: int = 2
     preferred_langs: str = "en"
     strip_other_langs: bool = True
     backup_keep: int = 7
@@ -32,6 +36,10 @@ class Settings(BaseSettings):
     @property
     def metadata_model(self) -> str:
         return self.openrouter_metadata_model or self.openrouter_model
+
+    @property
+    def vision_model(self) -> str:
+        return self.openrouter_vision_model or self.metadata_model
 
     @property
     def db_path(self) -> Path:

@@ -15,6 +15,7 @@ from .chunk import chunk_pages
 from .extract import extract_pages
 from .lang import detect_lang, strip_other_languages
 from .metadata import extract_metadata
+from .vision import apply_vision
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +53,10 @@ def process_manual(conn, manual_id: int) -> None:
             conn.commit()
 
     pages = extract_pages(path, s.ocr_langs, progress)
+    try:
+        apply_vision(path, pages, s)
+    except Exception as e:  # vision is a bonus; never fail the ingest over it
+        log.warning("vision OCR skipped for manual %s: %s", manual_id, e)
     if s.strip_other_langs:
         dropped = strip_other_languages(pages, set(s.preferred_lang_list))
         if dropped:
@@ -61,7 +66,8 @@ def process_manual(conn, manual_id: int) -> None:
     chunks = chunk_pages(pages)
     manuals_repo.replace_content(
         conn, manual_id,
-        [{"page_no": p.page_no, "text": p.text, "lang": p.lang, "ocr": p.ocr} for p in pages],
+        [{"page_no": p.page_no, "text": p.text, "lang": p.lang, "ocr": p.ocr, "ocr_method": p.method}
+         for p in pages],
         chunks,
     )
     manuals_repo.update_fields(conn, manual_id, {"page_count": len(pages), "pages_done": len(pages)})
