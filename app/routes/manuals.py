@@ -12,6 +12,7 @@ from ..ingest import worker
 from ..ingest.extract import IMAGE_EXTS, images_to_pdf, page_count
 from ..ingest.fetch import FetchError, FetchTooLarge, fetch_to_file
 from ..repo import jobs as jobs_repo
+from ..repo import maintenance as maintenance_repo
 from ..repo import manuals as manuals_repo
 from ..search import fts
 from ..web import templates
@@ -176,7 +177,9 @@ def manual_detail(request: Request, manual_id: int, page: int = 1):
     with db.get_conn() as conn:
         m = _get_or_404(conn, manual_id)
         stats = manuals_repo.page_stats(conn, manual_id)
-    return templates.TemplateResponse(request, "manual.html", {"m": m, "stats": stats, "page": page})
+        tasks = maintenance_repo.list_for_manual(conn, manual_id)
+    return templates.TemplateResponse(request, "manual.html",
+                                      {"m": m, "stats": stats, "page": page, "tasks": tasks})
 
 
 @router.post("/manuals/{manual_id}")

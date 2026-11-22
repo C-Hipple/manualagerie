@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+from datetime import date
 from typing import AsyncIterator
 
 import openai
@@ -9,13 +10,15 @@ import openai
 from .. import db
 from ..config import get_settings
 from ..repo import chat as chat_repo
+from ..repo import maintenance as maintenance_repo
 from ..repo import manuals as manuals_repo
 from ..repo import notes as notes_repo
 from ..search import fts
 from . import tools as tools_mod
 from .client import get_async_client
 from .prompts import (FALLBACK_CONTEXT, FALLBACK_PLAN_PROMPT, SYSTEM_PROMPT, TOOL_NOTE_INLINE,
-                      TOOL_NOTE_LARGE, TOOL_NOTE_NOTES, build_catalog, build_notes)
+                      TOOL_NOTE_LARGE, TOOL_NOTE_NOTES, build_catalog, build_notes,
+                      maintenance_summary)
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +53,8 @@ def build_system_prompt(conn) -> str:
     tool_note = (TOOL_NOTE_LARGE if truncated else TOOL_NOTE_INLINE) + (TOOL_NOTE_NOTES if abbreviated else "")
     return SYSTEM_PROMPT.format(
         tool_note=tool_note, note_count=len(note_rows), notes=notes,
-        count=len(rows), catalog=catalog,
+        count=len(rows), catalog=catalog, today=date.today().isoformat(),
+        maintenance=maintenance_summary(maintenance_repo.list_all(conn)),
     )
 
 

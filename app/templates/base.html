@@ -17,6 +17,8 @@
       <a href="/manuals" class="{{ 'active' if request.url.path.startswith('/manuals') }}">Manuals</a>
       <a href="/notes" class="{{ 'active' if request.url.path.startswith('/notes') }}">Notes</a>
       <a href="/search" class="{{ 'active' if request.url.path.startswith('/search') }}">Search</a>
+      {% set overdue = maintenance_overdue() %}
+      <a href="/maintenance" class="{{ 'active' if request.url.path.startswith('/maintenance') }}">Maintenance{% if overdue %} <span class="badge maint-overdue" title="Overdue maintenance tasks">{{ overdue }} overdue</span>{% endif %}</a>
       <a href="/shares" class="{{ 'active' if request.url.path.startswith('/shares') }}">Shares</a>
       {% include "_theme_picker.html" %}
       <form method="post" action="/logout" class="inline"><button class="linkish" title="Log out">⎋</button></form>

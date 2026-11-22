@@ -1,8 +1,10 @@
 """Tool schemas exposed to the model and their local implementations."""
 import json
 import sqlite3
+from datetime import date
 
 from ..config import get_settings
+from ..repo import maintenance as maintenance_repo
 from ..repo import manuals as manuals_repo
 from ..repo import notes as notes_repo
 from ..repo import shares as shares_repo
@@ -95,7 +97,44 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "log_maintenance",
+            "description": "Record that a tracked maintenance task was just done (e.g. the user says \"I changed "
+                           "the furnace filter\"). Updates the task's last-done date. Confirm to the user what "
+                           "was logged.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string", "description": "Task title or numeric id from the maintenance list"},
+                    "date": {"type": "string", "description": "YYYY-MM-DD the task was done; omit for today"},
+                },
+                "required": ["task"],
+            },
+        },
+    },
 ]
+
+
+def log_maintenance(conn: sqlite3.Connection, task, date_str: str | None = None) -> str:
+    task_row, candidates = maintenance_repo.find(conn, task)
+    if task_row is None:
+        if candidates:
+            return "Ambiguous task; which one? " + "; ".join(f"#{c['id']} {c['title']}" for c in candidates)
+        return f"No maintenance task matches {task!r}. Nothing was logged."
+    done_on = date.today()
+    if date_str:
+        try:
+            done_on = date.fromisoformat(str(date_str).strip()[:10])
+        except ValueError:
+            return f"Invalid date {date_str!r}; use YYYY-MM-DD. Nothing was logged."
+        if done_on > date.today():
+            return "That date is in the future. Nothing was logged."
+    maintenance_repo.mark_done(conn, task_row["id"], done_on, note="logged via assistant")
+    t = maintenance_repo.decorate(maintenance_repo.get(conn, task_row["id"]))
+    return (f"Logged: '{t['title']}' done on {done_on.isoformat()}. Last done is now {t['last_done']}; "
+            f"next due {t['due']}.")
 
 
 def _cite(manual_id: int, a: int, b: int) -> str:
@@ -186,6 +225,8 @@ def status_text(name: str, args: dict, conn: sqlite3.Connection) -> str:
         return f"Checking your notes for “{args.get('query', '')}”"
     if name == "create_share":
         return f"Creating a share link for “{shares_repo.clean_title(args.get('title'))}”"
+    if name == "log_maintenance":
+        return f"Logging maintenance: {args.get('task', '')}"
     return name
 
 
@@ -208,6 +249,8 @@ def dispatch(conn: sqlite3.Connection, name: str, raw_args: str, *, conv_id: int
             return search_notes(conn, args.get("query", "")), args
         if name == "create_share":
             return create_share(conn, args.get("title", ""), args["content"], conv_id, base_url), args
+        if name == "log_maintenance":
+            return log_maintenance(conn, args["task"], args.get("date")), args
     except (KeyError, TypeError, ValueError) as e:
         return f"Tool error: {type(e).__name__}: {e}", args
     return f"Unknown tool {name}", args
