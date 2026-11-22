@@ -13,7 +13,7 @@ from ..repo import chat as chat_repo
 from ..repo import maintenance as maintenance_repo
 from ..repo import manuals as manuals_repo
 from ..repo import notes as notes_repo
-from ..search import fts
+from ..search import hybrid
 from . import tools as tools_mod
 from .client import get_async_client
 from .prompts import (FALLBACK_CONTEXT, FALLBACK_PLAN_PROMPT, SYSTEM_PROMPT, TOOL_NOTE_INLINE,
@@ -229,7 +229,7 @@ async def _fallback(conn, messages: list[dict]) -> AsyncIterator[dict]:
     hits, seen = [], set()
     for q in plan["queries"][:4]:
         yield {"type": "status", "text": f"Searching for “{q}”"}
-        for h in fts.search(conn, q, plan.get("manual_ids") or None, 6, s.preferred_lang_list):
+        for h in hybrid.search(conn, q, plan.get("manual_ids") or None, 6, s.preferred_lang_list):
             if h["chunk_id"] not in seen:
                 seen.add(h["chunk_id"])
                 hits.append(h)

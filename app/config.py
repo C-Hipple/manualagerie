@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     catalog_inline_limit: int = 300
     notes_inline_chars: int = 20000
     start_worker: bool = True
+    # Phase 4: hybrid keyword + vector search. Falls back to FTS-only when off or unavailable.
+    semantic_search: bool = True
+    embed_bundled_dir: Path | None = None  # read-only model cache baked into the image (Dockerfile)
 
     @property
     def metadata_model(self) -> str:
@@ -60,6 +63,10 @@ class Settings(BaseSettings):
     @property
     def backups_dir(self) -> Path:
         return self.data_dir / "backups"
+
+    @property
+    def models_dir(self) -> Path:
+        return self.data_dir / "models"
 
     @property
     def preferred_lang_list(self) -> list[str]:

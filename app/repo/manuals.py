@@ -1,5 +1,7 @@
 import sqlite3
 
+from ..search import vector
+
 EDITABLE_FIELDS = (
     "title", "device_name", "brand", "model_numbers", "category",
     "doc_type", "room", "tags", "summary", "notes",
@@ -91,6 +93,7 @@ def fill_metadata_if_empty(conn: sqlite3.Connection, manual_id: int, meta: dict,
 
 
 def delete(conn: sqlite3.Connection, manual_id: int) -> None:
+    vector.delete_manual(conn, manual_id)  # vec0 has no foreign keys, so no cascade
     conn.execute("DELETE FROM manuals WHERE id = ?", (manual_id,))
 
 
@@ -117,6 +120,7 @@ def search_catalog(conn: sqlite3.Connection, query: str | None):
 # ---- pages & chunks ----
 
 def replace_content(conn: sqlite3.Connection, manual_id: int, pages: list[dict], chunks: list[dict]) -> None:
+    vector.delete_manual(conn, manual_id)  # chunk ids may be reused, so stale vectors must go first
     conn.execute("DELETE FROM chunks WHERE manual_id = ?", (manual_id,))
     conn.execute("DELETE FROM pages WHERE manual_id = ?", (manual_id,))
     conn.executemany(
