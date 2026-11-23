@@ -252,8 +252,8 @@ def test_older_schema_is_migrated(c, tmp_path):
     assert r.status_code == 200, r.text
     with db.get_conn() as conn:
         assert conn.execute("PRAGMA user_version").fetchone()[0] == library_io.schema_version()
-        conn.execute("SELECT ocr_method FROM pages").fetchall()  # added by 0010
-        conn.execute("SELECT count(*) FROM shares").fetchall()  # added by 0004
+        conn.execute("SELECT ocr_method FROM pages").fetchall()  # added by 0011
+        conn.execute("SELECT count(*) FROM shares").fetchall()  # added by 0005
 
 
 def test_missing_manifest_and_caps(c, tmp_path, monkeypatch):

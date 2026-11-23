@@ -38,6 +38,7 @@ def _page(request: Request, conv_id: int | None):
         msgs = [m for m in chat_repo.get_messages(conn, conv_id)
                 if m["role"] == "user" or (m["role"] == "assistant" and not m["tool_calls"])] if conv else []
         images = chat_repo.images_by_message(conn, conv_id) if conv else {}
+        pending = bool(conv) and conv_id in agent.ACTIVE
         manuals = manuals_repo.list_all(conn)
         ready = sum(1 for m in manuals if m["status"] == "ready")
         notes = notes_repo.list_all(conn)
@@ -47,7 +48,7 @@ def _page(request: Request, conv_id: int | None):
         "convs": convs, "conv": conv, "msgs": msgs, "titles_json": _script_json(titles), "ready_count": ready,
         "note_titles_json": _script_json(note_titles), "note_count": len(notes),
         "images": images, "chat_images": get_settings().chat_images, "max_images": chat_images.MAX_IMAGES,
-        "everyone": everyone, "can_scope": auth.current_user_id(request) is not None,
+        "everyone": everyone, "can_scope": auth.current_user_id(request) is not None, "pending": pending,
     })
 
 
@@ -146,9 +147,11 @@ async def send_message(request: Request, conv_id: int):
     with db.get_conn() as conn:
         if chat_repo.get_conversation(conn, conv_id) is None:
             raise HTTPException(404, "Conversation not found")
+    if conv_id in agent.ACTIVE:
+        raise HTTPException(409, "Still answering the previous message")
 
     async def stream():
-        async for ev in agent.run_turn(conv_id, text, str(request.base_url), images=images):
+        async for ev in agent.start_turn(conv_id, text, str(request.base_url), images=images):
             yield f"data: {json.dumps(ev)}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream",

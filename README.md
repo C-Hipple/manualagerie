@@ -133,7 +133,7 @@ Tesseract mangles tables, wiring diagrams and exploded parts views. So after a m
 
 ## Semantic search
 
-Keyword search (SQLite FTS5) is great at model numbers and units, but misses paraphrases: *"outlet tubing width"* shares no word with *"drain hose diameter"*. With `SEMANTIC_SEARCH=true` (the default) every chunk also gets a 384-dim embedding from the local ONNX model `BAAI/bge-small-en-v1.5` (via `fastembed`, CPU only, no API calls), stored in a `sqlite-vec` table (`chunks_vec`, migration `0011_vec.sql`).
+Keyword search (SQLite FTS5) is great at model numbers and units, but misses paraphrases: *"outlet tubing width"* shares no word with *"drain hose diameter"*. With `SEMANTIC_SEARCH=true` (the default) every chunk also gets a 384-dim embedding from the local ONNX model `BAAI/bge-small-en-v1.5` (via `fastembed`, CPU only, no API calls), stored in a `sqlite-vec` table (`chunks_vec`, migration `0012_vec.sql`).
 
 - **Search:** `search_manuals` and the `/search` page take the FTS top 30 and the vector top 30 and merge them with Reciprocal Rank Fusion (k = 60), keeping the manual filter, the preferred-language ordering and the highlighted snippets. `/search` labels each hit *keyword*, *semantic* or both, with its rank in each list.
 - **Indexing:** after a manual is chunked (upload or re-index) the worker runs an `embed` job in batches of 32. On startup, once the model has loaded, a backfill queues `embed` jobs for any ready manual with chunks missing vectors, so existing libraries are upgraded automatically. Deleting or re-indexing a manual deletes its vectors.

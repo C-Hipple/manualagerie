@@ -42,9 +42,16 @@
       </div>
       {% endif %}
       {% for m in msgs %}
+      {% if m.error %}
+      <div class="msg assistant error">{{ m.content }}</div>
+      {% else %}
       {% set imgs = images.get(m.id, []) if m.role == 'user' else [] %}
       <div class="msg {{ m.role }}" {% if m.role == 'assistant' %}data-md data-id="{{ m.id }}"{% endif %}>{% if imgs %}<div class="msg-images">{% for i in imgs %}<a href="/api/chat-images/{{ i.id }}" target="_blank" rel="noopener"><img src="/api/chat-images/{{ i.id }}" alt="Attached image {{ loop.index }}" width="{{ i.width }}" height="{{ i.height }}" loading="lazy" decoding="async"></a>{% endfor %}</div>{% endif %}{{ m.content }}</div>
+      {% endif %}
       {% endfor %}
+      {% if pending %}
+      <div class="msg assistant" id="pending-answer"><span class="thinking">Still working on this answer</span></div>
+      {% endif %}
     </div>
     <form id="composer" class="composer"{% if chat_images %} data-images="{{ max_images }}"{% endif %}>
       {% if chat_images %}

@@ -306,4 +306,11 @@
 
   renderStatic();
   scrollDown();
+
+  // The page was loaded while an answer was still being written (e.g. after a reload mid-turn): the server
+  // keeps going, so reload once it's done to show the saved answer.
+  if (document.getElementById('pending-answer')) {
+    busy = true; sendBtn.disabled = true;
+    setTimeout(() => location.reload(), 3000);
+  }
 })();

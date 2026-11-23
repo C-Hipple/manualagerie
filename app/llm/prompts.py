@@ -153,3 +153,8 @@ def build_notes(rows, char_limit: int, line_limit: int) -> tuple[str, bool]:
     if len(full) <= char_limit:
         return full, False
     return "\n".join(note_entry(n, with_body=False) for n in rows[:line_limit]), True
+
+FINAL_ANSWER_PROMPT = """You have used all of your searches for this question. Do not call any more tools. \
+Answer the user now using only what you have already found, citing it as usual. If you did not find what they \
+asked about, say so plainly, say which manuals and sections you checked, and suggest what to look for next \
+(for example the rear-panel diagram in the printed manual)."""
