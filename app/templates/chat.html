@@ -9,17 +9,17 @@
 <div class="chat-layout">
   <aside class="sidebar" id="sidebar">
     <a class="button primary block" href="/">＋ New question</a>
-    <ul class="conv-list">
-      {% for c in convs %}
-      <li class="{{ 'active' if conv and conv.id == c.id }}">
-        <a href="/c/{{ c.id }}">{{ c.title or 'Untitled' }}</a>
-        <form method="post" action="/c/{{ c.id }}/delete" onsubmit="return confirm('Delete this conversation?')">
-          <button class="icon" title="Delete">×</button>
-        </form>
-      </li>
-      {% else %}
-      <li class="muted small">No conversations yet.</li>
-      {% endfor %}
+    {% if can_scope %}
+    <div class="conv-scope small" role="group" aria-label="Whose conversations">
+      <a href="{{ request.url.path }}" class="{{ 'active' if not everyone }}">Mine</a>
+      <a href="{{ request.url.path }}?all=1" class="{{ 'active' if everyone }}">Everyone's</a>
+    </div>
+    {% endif %}
+    <input type="search" class="conv-search" name="q" placeholder="Search conversations…" aria-label="Search conversations"
+           autocomplete="off" hx-get="/api/conversations/search{{ '?all=1' if everyone and can_scope }}" hx-trigger="input changed delay:300ms, search"
+           hx-target="#conv-list" hx-swap="innerHTML">
+    <ul class="conv-list" id="conv-list">
+      {% set hits = none %}{% include "_conv_list.html" %}
     </ul>
   </aside>
   <main class="chat-main">
@@ -45,15 +45,21 @@
       {% if m.error %}
       <div class="msg assistant error">{{ m.content }}</div>
       {% else %}
-      <div class="msg {{ m.role }}" {% if m.role == 'assistant' %}data-md{% endif %}>{{ m.content }}</div>
+      {% set imgs = images.get(m.id, []) if m.role == 'user' else [] %}
+      <div class="msg {{ m.role }}" {% if m.role == 'assistant' %}data-md data-id="{{ m.id }}"{% endif %}>{% if imgs %}<div class="msg-images">{% for i in imgs %}<a href="/api/chat-images/{{ i.id }}" target="_blank" rel="noopener"><img src="/api/chat-images/{{ i.id }}" alt="Attached image {{ loop.index }}" width="{{ i.width }}" height="{{ i.height }}" loading="lazy" decoding="async"></a>{% endfor %}</div>{% endif %}{{ m.content }}</div>
       {% endif %}
       {% endfor %}
       {% if pending %}
       <div class="msg assistant" id="pending-answer"><span class="thinking">Still working on this answer</span></div>
       {% endif %}
     </div>
-    <form id="composer" class="composer">
-      <textarea id="input" rows="1" placeholder="Ask about any appliance…" autofocus></textarea>
+    <form id="composer" class="composer"{% if chat_images %} data-images="{{ max_images }}"{% endif %}>
+      {% if chat_images %}
+      <div class="attach-tray" id="attach-tray" hidden></div>
+      <input type="file" id="attach-input" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,.heic,.heif" multiple hidden>
+      <button type="button" class="attach-btn" id="attach" title="Attach photos or screenshots (or paste / drop them)" aria-label="Attach images">📎</button>
+      {% endif %}
+      <textarea id="input" rows="1" placeholder="Ask about any appliance…" aria-label="Your question" autofocus></textarea>
       <button class="primary" id="send" type="submit">Ask</button>
     </form>
   </main>

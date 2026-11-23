@@ -1,0 +1,20 @@
+{% if hits is not none %}
+{% for h in hits %}
+<li class="hit">
+  <a href="/c/{{ h.id }}{{ '?all=1' if everyone }}"><span class="hit-title">{{ h.title or 'Untitled' }}</span><span class="hit-snippet">{{ h.snippet | safe }}</span></a>
+</li>
+{% else %}
+<li class="muted small">No conversations match “{{ q }}”.</li>
+{% endfor %}
+{% else %}
+{% for c in convs %}
+<li class="{{ 'active' if conv and conv.id == c.id }}">
+  <a href="/c/{{ c.id }}{{ '?all=1' if everyone }}">{{ c.title or 'Untitled' }}{% if everyone %} <span class="conv-owner muted small">· {{ c.owner_name or 'unknown' }}</span>{% endif %}</a>
+  <form method="post" action="/c/{{ c.id }}/delete" onsubmit="return confirm('Delete this conversation?')">
+    <button class="icon" title="Delete">×</button>
+  </form>
+</li>
+{% else %}
+<li class="muted small">No conversations yet.</li>
+{% endfor %}
+{% endif %}

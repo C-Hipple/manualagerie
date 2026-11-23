@@ -28,6 +28,7 @@
       </div>
       {% if n.body %}<p class="note-body">{{ n.body }}</p>{% endif %}
       {% if n.tags %}<div class="tags">{% for t in tag_list(n.tags) %}<span class="tag">{{ t }}</span>{% endfor %}</div>{% endif %}
+      <p class="muted small note-by">Added by {{ n.created_by_name or 'unknown' }}</p>
     </article>
     {% else %}
     <p class="muted">No notes yet. Add the first one above.</p>

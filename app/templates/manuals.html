@@ -6,7 +6,7 @@
   <form class="card upload" hx-post="/manuals/upload" hx-encoding="multipart/form-data" hx-target="#upload-results"
         hx-swap="innerHTML" hx-on::after-request="this.reset(); htmx.trigger('#manual-rows', 'refresh')" id="upload-form">
     <label class="dropzone" id="dropzone">
-      <input type="file" name="files" multiple accept="application/pdf,image/*" id="file-input">
+      <input type="file" name="files" multiple accept="application/pdf,image/*,.heic,.heif" id="file-input">
       <span><strong>Drop PDFs here</strong> or click to choose. Photos of paper manuals work too.</span>
       <span class="muted small" id="file-names"></span>
     </label>
@@ -16,6 +16,17 @@
     </div>
     <div class="htmx-indicator muted small">Uploading…</div>
     <ul id="upload-results" class="small"></ul>
+  </form>
+
+  <form class="card upload" hx-post="/manuals/upload-url" hx-target="#url-results" hx-swap="innerHTML"
+        hx-on::after-request="if (event.detail.successful) { this.reset(); htmx.trigger('#manual-rows', 'refresh'); }" id="url-form">
+    <label class="small" for="url-input">Or add from a link to a manufacturer PDF or photo</label>
+    <div class="upload-actions">
+      <input type="url" name="url" id="url-input" placeholder="https://example.com/manual.pdf" required style="flex:1">
+      <button class="primary">Fetch</button>
+    </div>
+    <div class="htmx-indicator muted small">Fetching…</div>
+    <ul id="url-results" class="small"></ul>
   </form>
 
   <table class="manuals">

@@ -13,6 +13,7 @@ os.environ.update({
     "START_WORKER": "false",
     "OPENROUTER_API_KEY": "",
     "SECRET_KEY": "test-secret",
+    "SEMANTIC_SEARCH": "false",  # tests must never download the embedding model; test_vector opts in with a fake
 })
 
 from app import db  # noqa: E402
@@ -50,6 +51,26 @@ def make_pdf(path: Path, pages=DISHWASHER_PAGES) -> Path:
     doc.save(path)
     doc.close()
     return path
+
+
+TEST_USER, TEST_PASSWORD = "tester", "pw"
+
+
+def ensure_user(username: str = TEST_USER, password: str = TEST_PASSWORD, *, is_admin: bool = True,
+                display_name: str | None = None) -> int:
+    """Create the account if it doesn't exist yet (enabled, with this password). Returns its id."""
+    from app.repo import users as users_repo
+    with db.get_conn() as c:
+        u = users_repo.get_by_username(c, username)
+        if u is not None:
+            return u["id"]
+        return users_repo.create(c, username, display_name or username.title(), password, is_admin=is_admin)
+
+
+def login(client, username: str = TEST_USER, password: str = TEST_PASSWORD, *, is_admin: bool = True):
+    """Log `client` in as `username`, creating that user first if needed. Returns the /login response."""
+    ensure_user(username, password, is_admin=is_admin)
+    return client.post("/login", data={"username": username, "password": password}, follow_redirects=False)
 
 
 @pytest.fixture

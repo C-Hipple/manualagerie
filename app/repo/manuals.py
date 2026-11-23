@@ -1,5 +1,7 @@
 import sqlite3
 
+from ..search import vector
+
 EDITABLE_FIELDS = (
     "title", "device_name", "brand", "model_numbers", "category",
     "doc_type", "room", "tags", "summary", "notes",
@@ -41,10 +43,11 @@ def get(conn: sqlite3.Connection, manual_id: int):
     return conn.execute("SELECT * FROM manuals WHERE id = ?", (manual_id,)).fetchone()
 
 
-def create(conn: sqlite3.Connection, sha256: str, filename: str, file_ext: str) -> int:
+def create(conn: sqlite3.Connection, sha256: str, filename: str, file_ext: str,
+           source_url: str | None = None) -> int:
     cur = conn.execute(
-        "INSERT INTO manuals (sha256, filename, file_ext, title) VALUES (?, ?, ?, ?)",
-        (sha256, filename, file_ext, filename.rsplit(".", 1)[0]),
+        "INSERT INTO manuals (sha256, filename, file_ext, title, source_url) VALUES (?, ?, ?, ?, ?)",
+        (sha256, filename, file_ext, filename.rsplit(".", 1)[0], source_url),
     )
     return cur.lastrowid
 
@@ -90,6 +93,7 @@ def fill_metadata_if_empty(conn: sqlite3.Connection, manual_id: int, meta: dict,
 
 
 def delete(conn: sqlite3.Connection, manual_id: int) -> None:
+    vector.delete_manual(conn, manual_id)  # vec0 has no foreign keys, so no cascade
     conn.execute("DELETE FROM manuals WHERE id = ?", (manual_id,))
 
 
@@ -116,11 +120,13 @@ def search_catalog(conn: sqlite3.Connection, query: str | None):
 # ---- pages & chunks ----
 
 def replace_content(conn: sqlite3.Connection, manual_id: int, pages: list[dict], chunks: list[dict]) -> None:
+    vector.delete_manual(conn, manual_id)  # chunk ids may be reused, so stale vectors must go first
     conn.execute("DELETE FROM chunks WHERE manual_id = ?", (manual_id,))
     conn.execute("DELETE FROM pages WHERE manual_id = ?", (manual_id,))
     conn.executemany(
-        "INSERT INTO pages (manual_id, page_no, text, lang, ocr) VALUES (?, ?, ?, ?, ?)",
-        [(manual_id, p["page_no"], p["text"], p.get("lang"), int(p.get("ocr", False))) for p in pages],
+        "INSERT INTO pages (manual_id, page_no, text, lang, ocr, ocr_method) VALUES (?, ?, ?, ?, ?, ?)",
+        [(manual_id, p["page_no"], p["text"], p.get("lang"), int(p.get("ocr", False)),
+          p.get("ocr_method") or ("tesseract" if p.get("ocr") else "text")) for p in pages],
     )
     conn.executemany(
         "INSERT INTO chunks (manual_id, page_start, page_end, heading, lang, text) VALUES (?, ?, ?, ?, ?, ?)",
@@ -137,7 +143,7 @@ def get_pages(conn: sqlite3.Connection, manual_id: int, start: int, end: int):
 
 def page_stats(conn: sqlite3.Connection, manual_id: int):
     return conn.execute(
-        "SELECT count(*) AS n, sum(ocr) AS ocr, "
+        "SELECT count(*) AS n, sum(ocr_method = 'tesseract') AS ocr, sum(ocr_method = 'vision') AS vision, "
         "(SELECT count(*) FROM chunks WHERE manual_id = ?) AS chunks "
         "FROM pages WHERE manual_id = ?",
         (manual_id, manual_id),

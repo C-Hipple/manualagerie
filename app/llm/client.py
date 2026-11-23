@@ -6,7 +6,8 @@ from ..config import get_settings
 
 
 def _headers() -> dict:
-    return {"HTTP-Referer": get_settings().app_url, "X-Title": "Manualagerie"}
+    url = get_settings().app_url
+    return {"HTTP-Referer": url, "X-Title": "Manualagerie"} if url else {"X-Title": "Manualagerie"}
 
 
 @lru_cache

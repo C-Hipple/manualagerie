@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from app import themes
 from app.main import app
 from app.themes import DEFAULT_THEME, THEME_IDS
+from tests.conftest import login
 
 THEMES_CSS = Path(__file__).parent.parent / "app" / "static" / "themes.css"
 
@@ -67,7 +68,7 @@ def test_unknown_cookie_falls_back_to_default():
 
 def test_picker_offers_every_registered_theme():
     with client() as c:
-        c.post("/login", data={"password": "pw"})
+        login(c)
         r = c.get("/manuals")
         assert r.status_code == 200
         assert "data-theme-picker" in r.text

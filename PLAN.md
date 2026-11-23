@@ -16,7 +16,7 @@ Upload every manual in the house once, then ask questions like *"What size is th
 | Backend | Python 3.12 + FastAPI + uvicorn, managed with `uv` | Python has the strongest PDF/OCR tooling (PyMuPDF, Tesseract) |
 | Frontend | Server-rendered Jinja templates + HTMX + a small vanilla-JS chat client using SSE streaming | No separate SPA build. One process, one image |
 | Background work | In-process worker thread that reads a `jobs` table in SQLite | No Redis or queue service. Jobs survive restarts because they live in the DB |
-| Auth | One shared household password (env), signed session cookie | The site is on the public internet, but it is a single-tenant app |
+| Auth | Per-person accounts within one household (scrypt hashes, signed session cookie); `APP_PASSWORD` only bootstraps the first admin | The site is on the public internet. Data stays shared by the household; accounts record who asked and who did what |
 | Scale | **Exactly one replica** | SQLite on a volume can't be shared across replicas. Note this in the deploy docs |
 
 > ⚠️ **Model slug:** OpenRouter IDs are usually `vendor/model`, e.g. `deepseek/...`. Check the exact slug for `deepseek-flash-4.1-1017` on openrouter.ai/models, and confirm the model supports **tool calling** there. If it doesn't, the app falls back to the non-agentic pipeline described in §5.4.
@@ -237,7 +237,7 @@ Mobile-friendly layout, since the phone is what you'll have in hand standing in 
 | `APP_PASSWORD` | — (required) | Household login |
 | `SECRET_KEY` | — (required) | Cookie signing |
 | `DATA_DIR` | `/data` | Volume mount |
-| `APP_URL` | — | Used for the OpenRouter referer header |
+| `APP_URL` | — | OpenRouter referer header, Secure cookies, absolute share links |
 | `MAX_UPLOAD_MB` | `100` | |
 | `OCR_LANGS` | `eng` | Tesseract language packs; the image must include them |
 | `PREFERRED_LANGS` | `en` | Search language filter; languages kept at ingest |

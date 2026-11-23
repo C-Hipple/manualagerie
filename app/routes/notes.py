@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 
-from .. import db
+from .. import auth, db
 from ..repo import notes as notes_repo
 from ..web import templates
 
@@ -23,12 +23,12 @@ def notes_page(request: Request):
 
 
 @router.post("/notes")
-def note_create(title: str = Form(""), body: str = Form(""), tags: str = Form("")):
+def note_create(request: Request, title: str = Form(""), body: str = Form(""), tags: str = Form("")):
     fields = notes_repo.clean(title, body, tags)
     if fields is None:
         return RedirectResponse("/notes?empty=1", status_code=303)
     with db.get_conn() as conn:
-        note_id = notes_repo.create(conn, **fields)
+        note_id = notes_repo.create(conn, **fields, created_by=auth.current_user_id(request))
     return RedirectResponse(f"/notes#note-{note_id}", status_code=303)
 
 

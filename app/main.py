@@ -10,7 +10,8 @@ from . import auth, db
 from .config import get_settings
 from .ingest import worker
 from .routes import auth as auth_routes
-from .routes import chat, health, manuals, notes
+from .routes import accounts, chat, health, maintenance, manuals, notes, shares
+from .routes import settings as settings_routes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("manualagerie")
@@ -46,6 +47,10 @@ def create_app() -> FastAPI:
     app.include_router(manuals.router)
     app.include_router(notes.router)
     app.include_router(chat.router)
+    app.include_router(shares.router)
+    app.include_router(maintenance.router)
+    app.include_router(settings_routes.router)
+    app.include_router(accounts.router)
     return app
 
 

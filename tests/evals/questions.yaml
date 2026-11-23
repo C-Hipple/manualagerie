@@ -1,0 +1,68 @@
+# Manualagerie evaluation questions.
+#
+# THE ENTRIES BELOW ARE EXAMPLES ONLY. They describe imaginary manuals and will not match
+# your library. Replace them with ~20 real questions about the manuals you have uploaded
+# (see "Evaluating answer quality" in README.md), then run:
+#
+#     uv run python scripts/eval.py [--retrieval-only] [--limit N] [--file PATH] [--k N]
+#
+# Schema (a top-level list called `questions`; each entry is a mapping):
+#
+#   question:             (required) Ask it the way you would in the chat box.
+#   manual:               (required unless expect_not_found) Which manual should answer it.
+#                         Matched case-insensitively as a substring of the manual's title OR its
+#                         original filename, so "SHPM88Z75N" or "dishwasher" both work.
+#                         Keep it specific enough to match only one manual (or a few
+#                         near-identical ones: any match counts).
+#   pages:                (optional) Where the answer lives. An integer (12), a range string
+#                         ("12-14") or a list mixing both ([12, "20-21"]). Any overlap between
+#                         these and a retrieved/cited page counts. Omit to only check the manual.
+#   expect_not_found:     (optional, default false) true for questions the manuals do NOT answer.
+#                         The answer must then say so instead of inventing a value; `manual` and
+#                         `pages` are ignored and the retrieval check is skipped.
+#   answer_must_contain:  (optional) List of strings that must all appear in the answer
+#                         (case-insensitive). Use short, exact facts such as "5/8", "20 psi".
+#   note:                 (optional) Free text for you; never evaluated.
+#
+# Tip: use the PDF page index (the first page is 1), not the printed page number. These are
+# the same numbers the assistant cites.
+
+questions:
+  # EXAMPLE: a plain lookup. Checks the right manual AND page come back from search, and that
+  # the answer cites that manual/page and mentions the value.
+  - question: What size is the drain hose connection on my dishwasher?
+    manual: dishwasher
+    pages: [3]
+    answer_must_contain: ["5/8"]
+    note: EXAMPLE - replace with one of your own manuals
+
+  # EXAMPLE: the answer may sit on several pages; any overlap is accepted.
+  - question: How do I reset the thermostat on the downstairs AC?
+    manual: Air Conditioner
+    pages: "14-15"
+    note: EXAMPLE - uses a page range
+
+  # EXAMPLE: you know the manual but not the page. Omit `pages` to check only the manual.
+  - question: How often should I replace the water filter in the fridge?
+    manual: Refrigerator Use and Care
+    answer_must_contain: ["6 months"]
+    note: EXAMPLE - manual only
+
+  # EXAMPLE: match by filename instead of title.
+  - question: What is the maximum load for the washing machine?
+    manual: washer_manual.pdf
+    pages: [8, "10-11"]
+    answer_must_contain: ["kg"]
+    note: EXAMPLE - filename match, page list
+
+  # EXAMPLE: the manuals do not cover this. The assistant should say so, not guess.
+  - question: What is the Wi-Fi password for the printer?
+    expect_not_found: true
+    note: EXAMPLE - a question no manual answers (guards against hallucination)
+
+  # EXAMPLE: everyday wording that differs from the manual's vocabulary (tests tags/synonyms).
+  - question: Why is my lawn mower blowing white smoke at start up?
+    manual: Lawn Mower
+    pages: [22]
+    answer_must_contain: ["oil"]
+    note: EXAMPLE - vocabulary mismatch ("white smoke" vs "excessive exhaust")

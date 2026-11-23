@@ -7,6 +7,7 @@
   <p class="muted small">
     #{{ m.id }} · {{ m.filename }} · {{ m.page_count or '?' }} pages
     {% if stats and stats.ocr %} · {{ stats.ocr }} pages OCR'd{% endif %}
+    {% if stats and stats.vision %} · {{ stats.vision }} page{{ 's' if stats.vision != 1 }} read with vision{% endif %}
     {% if stats %} · {{ stats.chunks }} search passages{% endif %}
     · <span class="badge {{ m.status }}">{{ status_label(m) }}</span>
   </p>
@@ -46,5 +47,17 @@
       </div>
     </div>
   </div>
+  {% if tasks %}
+  <section class="card maint-tasks">
+    <h2>Maintenance</h2>
+    <ul>
+      {% for t in tasks %}
+      <li>{{ t.title }} <span class="badge maint-{{ t.status }}">{{ t.status_label }}</span>
+        <span class="muted small">due {{ t.due }}</span></li>
+      {% endfor %}
+    </ul>
+    <a href="/maintenance">Manage maintenance</a>
+  </section>
+  {% endif %}
 </main>
 {% endblock %}

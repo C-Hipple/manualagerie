@@ -32,16 +32,20 @@ def get(conn: sqlite3.Connection, note_id: int):
 
 
 def list_all(conn: sqlite3.Connection):
-    return conn.execute("SELECT * FROM notes ORDER BY title COLLATE NOCASE, id").fetchall()
+    """Every note, with `created_by_name` (NULL for notes from before accounts)."""
+    return conn.execute(
+        "SELECT n.*, u.display_name AS created_by_name FROM notes n LEFT JOIN users u ON u.id = n.created_by "
+        "ORDER BY n.title COLLATE NOCASE, n.id").fetchall()
 
 
 def count(conn: sqlite3.Connection) -> int:
     return conn.execute("SELECT count(*) FROM notes").fetchone()[0]
 
 
-def create(conn: sqlite3.Connection, title: str, body: str | None = None, tags: str | None = None) -> int:
+def create(conn: sqlite3.Connection, title: str, body: str | None = None, tags: str | None = None,
+           created_by: int | None = None) -> int:
     return conn.execute(
-        "INSERT INTO notes (title, body, tags) VALUES (?, ?, ?)", (title, body, tags),
+        "INSERT INTO notes (title, body, tags, created_by) VALUES (?, ?, ?, ?)", (title, body, tags, created_by),
     ).lastrowid
 
 

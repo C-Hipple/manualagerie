@@ -8,13 +8,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+import pillow_heif
 import pymupdf as fitz
+from PIL import Image, ImageOps
+
+pillow_heif.register_heif_opener()  # lets PIL open iPhone .heic/.heif photos
 
 log = logging.getLogger(__name__)
 
 MIN_TEXT_CHARS = 40
 OCR_DPI = 300
-IMAGE_EXTS = {"png", "jpg", "jpeg", "webp", "tif", "tiff", "bmp", "gif"}
+IMAGE_EXTS = {"png", "jpg", "jpeg", "webp", "tif", "tiff", "bmp", "gif", "heic", "heif"}
 
 
 @dataclass
@@ -30,6 +34,13 @@ class Page:
     ocr: bool = False
     paragraphs: list[Paragraph] = field(default_factory=list)
     lang: str | None = None
+    # How the text was produced: "text" (PDF text layer), "tesseract" or "vision".
+    method: str = "text"
+    # Signals app/ingest/vision.py uses to decide whether a page needs the LLM.
+    native_chars: int = 0               # characters in the PDF text layer
+    image_ratio: float = 0.0            # share of the page area covered by embedded images
+    ocr_conf: float | None = None       # mean Tesseract word confidence, 0-100
+    ocr_coverage: float | None = None   # share of the page area covered by Tesseract word boxes
 
 
 def ocr_available() -> bool:
@@ -40,7 +51,14 @@ def images_to_pdf(image_paths: list[Path], out_path: Path) -> None:
     """Combine one or more photos into a single PDF (one image per page)."""
     out = fitz.open()
     for p in image_paths:
-        img = fitz.open(p)
+        if p.suffix.lower() in (".heic", ".heif"):
+            # MuPDF can't decode HEIF; go through PIL (honouring EXIF rotation) as JPEG.
+            buf = io.BytesIO()
+            with Image.open(p) as im:
+                ImageOps.exif_transpose(im).convert("RGB").save(buf, "JPEG", quality=92)
+            img = fitz.open("jpeg", buf.getvalue())
+        else:
+            img = fitz.open(p)
         pdf_bytes = img.convert_to_pdf()
         img.close()
         img_pdf = fitz.open("pdf", pdf_bytes)
@@ -127,13 +145,48 @@ def _paragraphs_from_plain(text: str) -> list[Paragraph]:
     return paras
 
 
-def _ocr_page(page: "fitz.Page", langs: str) -> str:
-    import pytesseract
-    from PIL import Image
+def _image_ratio(page: "fitz.Page") -> float:
+    """Share of the page covered by embedded images (overlaps may double count; capped at 1)."""
+    area = abs(page.rect)
+    if not area:
+        return 0.0
+    covered = 0.0
+    try:
+        for info in page.get_image_info():
+            covered += abs(fitz.Rect(info["bbox"]) & page.rect)
+    except Exception:
+        return 0.0
+    return min(1.0, covered / area)
 
+
+def _ocr_page(page: "fitz.Page", langs: str) -> tuple[str, float | None, float]:
+    """Tesseract one page. Returns (text, mean word confidence, word-box coverage of the page)."""
+    import pytesseract
     pix = page.get_pixmap(dpi=OCR_DPI)
     img = Image.open(io.BytesIO(pix.tobytes("png")))
-    return pytesseract.image_to_string(img, lang=langs)
+    data = pytesseract.image_to_data(img, lang=langs, output_type=pytesseract.Output.DICT)
+    lines: dict[tuple, list[str]] = {}
+    conf_sum = conf_weight = box_area = 0.0
+    for i, word in enumerate(data["text"]):
+        word = (word or "").strip()
+        if not word:
+            continue
+        key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+        lines.setdefault(key, []).append(word)
+        conf = float(data["conf"][i])
+        if conf >= 0:
+            conf_sum += conf * len(word)
+            conf_weight += len(word)
+        box_area += data["width"][i] * data["height"][i]
+    out: list[str] = []
+    prev_par = None
+    for (block, par, _), words in lines.items():
+        if prev_par is not None and (block, par) != prev_par:
+            out.append("")
+        out.append(" ".join(words))
+        prev_par = (block, par)
+    coverage = box_area / (pix.width * pix.height) if pix.width and pix.height else 0.0
+    return "\n".join(out), (conf_sum / conf_weight if conf_weight else None), coverage
 
 
 def extract_pages(path: Path, ocr_langs: str = "eng",
@@ -146,11 +199,13 @@ def extract_pages(path: Path, ocr_langs: str = "eng",
         for i, page in enumerate(doc):
             paras = _paragraphs_from_dict(page)
             text = "\n\n".join(p.text for p in paras)
+            native_chars = len(text.strip())
             used_ocr = False
+            ocr_conf = ocr_coverage = None
             if len(text.strip()) < MIN_TEXT_CHARS:
                 if can_ocr:
                     try:
-                        ocr_text = _ocr_page(page, ocr_langs)
+                        ocr_text, ocr_conf, ocr_coverage = _ocr_page(page, ocr_langs)
                         if len(ocr_text.strip()) > len(text.strip()):
                             paras = _paragraphs_from_plain(ocr_text)
                             text = "\n\n".join(p.text for p in paras)
@@ -160,7 +215,9 @@ def extract_pages(path: Path, ocr_langs: str = "eng",
                 elif not warned:
                     log.warning("tesseract not installed; scanned pages in %s will have no text", path.name)
                     warned = True
-            pages.append(Page(page_no=i + 1, text=text, ocr=used_ocr, paragraphs=paras))
+            pages.append(Page(page_no=i + 1, text=text, ocr=used_ocr, paragraphs=paras,
+                              method="tesseract" if used_ocr else "text", native_chars=native_chars,
+                              image_ratio=_image_ratio(page), ocr_conf=ocr_conf, ocr_coverage=ocr_coverage))
             if progress:
                 progress(i + 1, total)
     return pages

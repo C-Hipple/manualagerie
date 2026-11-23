@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Maintenance · Manualagerie{% endblock %}
+{% block content %}
+<main class="page">
+  <h1>Maintenance</h1>
+  {% if error %}<p class="error">Please give the task a title and an interval of at least 1 day (and a valid date).</p>{% endif %}
+
+  <form method="post" action="{{ '/maintenance/' ~ editing.id if editing else '/maintenance' }}" class="card meta-form">
+    <h2>{{ 'Edit task' if editing else 'Add a task' }}</h2>
+    <label>Title<input name="title" required value="{{ editing.title if editing else '' }}" placeholder="e.g. Change furnace filter"></label>
+    <label>Repeat every (days)<input name="interval_days" type="number" min="1" required value="{{ editing.interval_days if editing else '' }}" placeholder="90"></label>
+    <label>Last done<input name="last_done" type="date" value="{{ editing.last_done if editing and editing.last_done else '' }}"></label>
+    <label>Manual
+      <select name="manual_id">
+        <option value="">(none)</option>
+        {% for m in manuals %}<option value="{{ m.id }}" {{ 'selected' if editing and editing.manual_id == m.id }}>{{ m.device_name or m.title or m.filename }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Notes<textarea name="notes" rows="2">{{ editing.notes if editing and editing.notes else '' }}</textarea></label>
+    <div class="row">
+      <button class="primary">{{ 'Save' if editing else 'Add task' }}</button>
+      {% if editing %}<a class="button" href="/maintenance">Cancel</a>{% endif %}
+    </div>
+  </form>
+
+  {% if tasks %}
+  <table class="manuals maintenance">
+    <thead><tr><th>Task</th><th>Status</th><th>Due</th><th class="hide-sm">Last done</th><th></th></tr></thead>
+    <tbody>
+    {% for t in tasks %}
+      <tr>
+        <td>{{ t.title }}
+          {% if t.manual_id %}<div class="small"><a href="/manuals/{{ t.manual_id }}">{{ t.manual_name }}</a></div>{% endif %}
+          {% if t.notes %}<div class="muted small">{{ t.notes }}</div>{% endif %}
+          <div class="muted small">every {{ t.interval_days }} days</div>
+        </td>
+        <td><span class="badge maint-{{ t.status }}">{{ t.status_label }}</span></td>
+        <td>{{ t.due }}</td>
+        <td class="hide-sm">{{ t.last_done or 'never' }}{% if t.last_done_by %}<div class="muted small">by {{ t.last_done_by }}</div>{% endif %}</td>
+        <td class="row">
+          <form method="post" action="/maintenance/{{ t.id }}/done" class="inline"><button class="primary">Mark done</button></form>
+          <a class="button" href="/maintenance?edit={{ t.id }}">Edit</a>
+          <form method="post" action="/maintenance/{{ t.id }}/delete" class="inline"
+                onsubmit="return confirm('Delete this task?')"><button class="danger">Delete</button></form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted">No maintenance tasks yet.</p>
+  {% endif %}
+</main>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Settings · Manualagerie{% endblock %}
+{% block content %}
+<main class="page settings-page">
+  <h1>Settings</h1>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if message %}<p class="ok">{{ message }}</p>{% endif %}
+  {% if backup %}<p class="muted small">The previous library was kept at <code>{{ backup }}</code>.</p>{% endif %}
+
+  {% set me = current_user(request) %}
+  <section class="card">
+    <h2>Account</h2>
+    {% if me %}<p class="muted small">Signed in as <strong>{{ me.display_name }}</strong> (@{{ me.username }}){{ ', an admin' if me.is_admin }}.</p>{% endif %}
+    <div class="row">
+      {% if me %}<a class="button" href="/settings/password">Change my password</a>{% endif %}
+      {% if is_admin(request) %}<a class="button" href="/settings/users">Manage users</a>{% endif %}
+    </div>
+  </section>
+
+  {% if is_admin(request) %}
+  <section class="card">
+    <h2>Export library</h2>
+    <p class="muted small">Downloads one zip with a snapshot of the database ({{ manual_count }} manuals, chats, tags and notes)
+      and every original file. Keep it somewhere safe, or import it into another Manualagerie.
+      The login secret is not included; user accounts (with their password hashes) are.</p>
+    <div class="row">
+      <a class="button primary" href="/settings/export" download>Download export</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Import library</h2>
+    <p class="muted small">Replaces <strong>everything</strong> here with the contents of an export: manuals, files and chats.
+      Nothing is merged. The archive is checked before anything changes, and the current library is
+      backed up automatically first. User accounts are replaced too: afterwards, sign in with an account from the
+      export (an export from before accounts brings back the first-account setup).</p>
+    <form method="post" action="/settings/import" enctype="multipart/form-data"
+          onsubmit="return confirm('Replace the whole library with this export?')">
+      <label>Export file (.zip)<input type="file" name="archive" accept=".zip,application/zip" required></label>
+      <label>Type {{ confirm_word }} to confirm
+        <input name="confirm" autocomplete="off" pattern="{{ confirm_word }}" placeholder="{{ confirm_word }}" required></label>
+      <div class="row">
+        <button class="danger">Replace library</button>
+      </div>
+    </form>
+  </section>
+  {% else %}
+  <p class="muted small">Exporting and importing the library is for admins.</p>
+  {% endif %}
+  <p class="muted small">Schema version {{ schema_version }}.</p>
+</main>
+{% endblock %}

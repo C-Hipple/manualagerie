@@ -9,6 +9,7 @@ from app.llm.prompts import TOOL_NOTE_NOTES, build_notes
 from app.main import app
 from app.repo import chat as chat_repo
 from app.repo import notes as notes_repo
+from tests.conftest import login
 
 FILTERS = ("Upstairs AC filters", "16x25x1, MERV 11.\nTwo of them, in the hallway ceiling returns.", "upstairs AC, HVAC")
 
@@ -28,7 +29,7 @@ def _note(conn, title, body=None, tags=None):
 
 
 def _login(c):
-    c.post("/login", data={"password": "pw"}, follow_redirects=False)
+    login(c)
 
 
 @pytest.mark.parametrize("title, body, tags, expected", [
