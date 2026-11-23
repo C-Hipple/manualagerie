@@ -42,11 +42,17 @@
       </div>
       {% endif %}
       {% for m in msgs %}
-      <div class="msg {{ m.role }}" {% if m.role == 'assistant' %}data-md data-id="{{ m.id }}"{% endif %}>{{ m.content }}</div>
+      {% set imgs = images.get(m.id, []) if m.role == 'user' else [] %}
+      <div class="msg {{ m.role }}" {% if m.role == 'assistant' %}data-md data-id="{{ m.id }}"{% endif %}>{% if imgs %}<div class="msg-images">{% for i in imgs %}<a href="/api/chat-images/{{ i.id }}" target="_blank" rel="noopener"><img src="/api/chat-images/{{ i.id }}" alt="Attached image {{ loop.index }}" width="{{ i.width }}" height="{{ i.height }}" loading="lazy" decoding="async"></a>{% endfor %}</div>{% endif %}{{ m.content }}</div>
       {% endfor %}
     </div>
-    <form id="composer" class="composer">
-      <textarea id="input" rows="1" placeholder="Ask about any appliance…" autofocus></textarea>
+    <form id="composer" class="composer"{% if chat_images %} data-images="{{ max_images }}"{% endif %}>
+      {% if chat_images %}
+      <div class="attach-tray" id="attach-tray" hidden></div>
+      <input type="file" id="attach-input" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,.heic,.heif" multiple hidden>
+      <button type="button" class="attach-btn" id="attach" title="Attach photos or screenshots (or paste / drop them)" aria-label="Attach images">📎</button>
+      {% endif %}
+      <textarea id="input" rows="1" placeholder="Ask about any appliance…" aria-label="Your question" autofocus></textarea>
       <button class="primary" id="send" type="submit">Ask</button>
     </form>
   </main>

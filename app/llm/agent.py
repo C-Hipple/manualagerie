@@ -7,17 +7,17 @@ from typing import AsyncIterator
 
 import openai
 
-from .. import db
+from .. import chat_images, db
 from ..config import get_settings
 from ..repo import chat as chat_repo
 from ..repo import maintenance as maintenance_repo
 from ..repo import manuals as manuals_repo
 from ..repo import notes as notes_repo
-from ..search import fts
+from ..search import hybrid
 from . import tools as tools_mod
 from .client import get_async_client
-from .prompts import (FALLBACK_CONTEXT, FALLBACK_PLAN_PROMPT, SYSTEM_PROMPT, TOOL_NOTE_INLINE,
-                      TOOL_NOTE_LARGE, TOOL_NOTE_NOTES, build_catalog, build_notes,
+from .prompts import (FALLBACK_CONTEXT, FALLBACK_PLAN_PROMPT, IMAGE_ONLY_TEXT, NO_TEXT_PLAN, SYSTEM_PROMPT,
+                      TOOL_NOTE_INLINE, TOOL_NOTE_LARGE, TOOL_NOTE_NOTES, build_catalog, build_notes,
                       maintenance_summary)
 
 log = logging.getLogger(__name__)
@@ -59,11 +59,38 @@ def build_system_prompt(conn) -> str:
 
 
 def history_for_llm(conn, conv_id: int) -> list[dict]:
-    """Prior user/assistant turns only (tool chatter is dropped to keep context small)."""
-    rows = chat_repo.get_messages(conn, conv_id)
-    msgs = [{"role": r["role"], "content": r["content"] or ""}
-            for r in rows if r["role"] == "user" or (r["role"] == "assistant" and not r["tool_calls"] and r["content"])]
-    return msgs[-HISTORY_TURNS * 2:]
+    """Prior user/assistant turns only (tool chatter is dropped to keep context small).
+
+    Earlier turns' images are not resent: each becomes an "[image previously attached]" marker, which
+    keeps token use bounded (the answer to that turn already holds what was read from the image).
+    """
+    rows = [r for r in chat_repo.get_messages(conn, conv_id)
+            if r["role"] == "user" or (r["role"] == "assistant" and not r["tool_calls"] and r["content"])]
+    counts = {mid: len(v) for mid, v in chat_repo.images_by_message(conn, conv_id).items()}
+    return chat_repo.to_llm_history(rows, counts)[-HISTORY_TURNS * 2:]
+
+
+def user_content(text: str, images: list | None):
+    """A plain string, or OpenAI content parts (text first, then the images) when images are attached."""
+    if not images:
+        return text
+    return [{"type": "text", "text": text.strip() or IMAGE_ONLY_TEXT}, *chat_images.image_parts(images)]
+
+
+IMAGE_ERROR_WORDS = ("image", "vision", "multimodal", "multi-modal", "modalit")
+
+
+def _is_image_unsupported(e: Exception) -> bool:
+    """The provider refused the request because the model can't take image input."""
+    if not isinstance(e, (openai.BadRequestError, openai.NotFoundError, openai.UnprocessableEntityError)):
+        return False
+    msg = f"{getattr(e, 'message', '')} {e} {getattr(e, 'body', '')}".lower()
+    return any(w in msg for w in IMAGE_ERROR_WORDS)
+
+
+def image_unsupported_text(model: str) -> str:
+    return (f"The current model ({model}) can't read images. Set OPENROUTER_MODEL to a vision-capable model "
+            "(one that lists image input on openrouter.ai/models), or ask again without the photo.")
 
 
 def _is_tool_unsupported(e: Exception) -> bool:
@@ -108,19 +135,24 @@ async def _stream_completion(messages: list[dict], *, tools: list | None, tool_c
     yield "result", {"content": "".join(content), "tool_calls": tool_calls, "usage": usage}
 
 
-async def run_turn(conv_id: int, user_text: str, base_url: str | None = None) -> AsyncIterator[dict]:
+async def run_turn(conv_id: int, user_text: str, base_url: str | None = None,
+                   images: list | None = None) -> AsyncIterator[dict]:
     """Persist the user message, run the agent, persist the answer. Yields UI events.
 
     base_url is the request's own URL, used for share links when APP_URL isn't set.
+    images are already-validated chat_images.ProcessedImage objects attached to this question.
     """
     s = get_settings()
+    images = images or []
     conn = db.connect()
     try:
         conv = chat_repo.get_conversation(conn, conv_id)
         prior = history_for_llm(conn, conv_id)
-        chat_repo.add_message(conn, conv_id, "user", user_text)
+        user_msg_id = chat_repo.add_message(conn, conv_id, "user", user_text)
+        for img in images:
+            chat_images.save(conn, conv_id, user_msg_id, img)
         if not conv["title"]:
-            chat_repo.set_title(conn, conv_id, user_text.strip()[:70])
+            chat_repo.set_title(conn, conv_id, user_text.strip()[:70] or "Photo question")
         chat_repo.touch(conn, conv_id)
         conn.commit()
 
@@ -129,7 +161,7 @@ async def run_turn(conv_id: int, user_text: str, base_url: str | None = None) ->
             return
 
         messages = [{"role": "system", "content": build_system_prompt(conn)}, *prior,
-                    {"role": "user", "content": user_text}]
+                    {"role": "user", "content": user_content(user_text, images)}]
 
         final_text = None
         if s.llm_tools:
@@ -140,7 +172,7 @@ async def run_turn(conv_id: int, user_text: str, base_url: str | None = None) ->
                     else:
                         yield ev
             except Exception as e:
-                if not _is_tool_unsupported(e):
+                if (images and _is_image_unsupported(e)) or not _is_tool_unsupported(e):
                     raise
                 log.warning("model rejected tools, using fallback pipeline: %s", e)
                 yield {"type": "reset"}
@@ -165,6 +197,10 @@ async def run_turn(conv_id: int, user_text: str, base_url: str | None = None) ->
         conn.commit()
         yield {"type": "done", "message_id": msg_id, "citations": citations}
     except openai.APIError as e:
+        if images and _is_image_unsupported(e):
+            log.warning("model %s rejected image input: %s", s.openrouter_model, e)
+            yield {"type": "error", "text": image_unsupported_text(s.openrouter_model)}
+            return
         log.exception("LLM error")
         yield {"type": "error", "text": f"The AI service returned an error: {getattr(e, 'message', str(e))}"}
     except Exception as e:
@@ -213,9 +249,14 @@ async def _fallback(conn, messages: list[dict]) -> AsyncIterator[dict]:
     s = get_settings()
     rows = manuals_repo.list_ready(conn)
     catalog, _ = build_catalog(rows, s.catalog_inline_limit)
-    convo = "\n".join(f"{m['role']}: {m['content']}" for m in messages[1:] if m["role"] in ("user", "assistant"))
+    # The planner is text only: images on the current turn go to the final answer call below.
+    last = messages[-1]["content"]
+    question = "" if isinstance(last, list) and last[0].get("text") == IMAGE_ONLY_TEXT else chat_repo.content_text(last)
+    lines = [f"{m['role']}: {chat_repo.content_text(m['content'])}" for m in messages[1:-1]
+             if m["role"] in ("user", "assistant")]
+    convo = "\n".join([*lines, f"user: {question or NO_TEXT_PLAN}"])
     yield {"type": "status", "text": "Choosing which manuals to search"}
-    plan = {"queries": [messages[-1]["content"]], "manual_ids": []}
+    plan = {"queries": [question] if question.strip() else [], "manual_ids": []}
     try:
         resp = await get_async_client().chat.completions.create(
             model=s.openrouter_model, temperature=0, response_format={"type": "json_object"},
@@ -229,7 +270,7 @@ async def _fallback(conn, messages: list[dict]) -> AsyncIterator[dict]:
     hits, seen = [], set()
     for q in plan["queries"][:4]:
         yield {"type": "status", "text": f"Searching for “{q}”"}
-        for h in fts.search(conn, q, plan.get("manual_ids") or None, 6, s.preferred_lang_list):
+        for h in hybrid.search(conn, q, plan.get("manual_ids") or None, 6, s.preferred_lang_list):
             if h["chunk_id"] not in seen:
                 seen.add(h["chunk_id"])
                 hits.append(h)

@@ -8,7 +8,7 @@ from ..repo import maintenance as maintenance_repo
 from ..repo import manuals as manuals_repo
 from ..repo import notes as notes_repo
 from ..repo import shares as shares_repo
-from ..search import fts
+from ..search import hybrid
 from .prompts import catalog_line, note_entry
 
 MAX_READ_PAGES = 4
@@ -18,8 +18,8 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_manuals",
-            "description": "Keyword search (BM25) over the text of the user's manuals. Returns the best matching "
-                           "passages with manual id and page numbers.",
+            "description": "Search the text of the user's manuals (keyword BM25, plus semantic matching when "
+                           "enabled). Returns the best matching passages with manual id and page numbers.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -153,7 +153,7 @@ def _cite(manual_id: int, a: int, b: int) -> str:
 def search_manuals(conn: sqlite3.Connection, query: str, manual_ids=None, limit: int | None = None) -> str:
     limit = max(1, min(int(limit or 6), 12))
     ids = [int(x) for x in manual_ids] if manual_ids else None
-    hits = fts.search(conn, query, ids, limit, get_settings().preferred_lang_list)
+    hits = hybrid.search(conn, query, ids, limit, get_settings().preferred_lang_list)
     if not hits:
         return f"No passages matched {query!r}" + (f" in manuals {ids}" if ids else "") + \
             ". Try different keywords or synonyms, or search all manuals."

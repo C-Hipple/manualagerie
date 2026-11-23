@@ -38,6 +38,7 @@ If your model doesn't support tool calling, set `LLM_TOOLS=false` to use the sim
 ## Deploy
 
 - Mount a persistent volume at `/data`. It holds the SQLite DB, the original PDFs, nightly backups and the auto-generated cookie secret.
+- Back up off-box with **Settings → Download export**. Importing keeps the previous library under `/data/backups/pre-import-*` (originals included), so leave room on the volume for up to 3 extra copies after imports, or delete those folders once you're happy.
 - Run **exactly one replica**: SQLite on a volume can't be shared between replicas.
 - Required env: `OPENROUTER_API_KEY` (see [LLM backend](#llm-backend-openrouter)), and `APP_PASSWORD` until the first account exists. The app refuses to start without `APP_PASSWORD` while there are no accounts. After that it isn't needed (see [Accounts](#accounts)). Set `APP_URL=https://…` so session cookies are marked Secure.
 - After deploying (or upgrading from the shared-password version), open the site and create the first (admin) account with `APP_PASSWORD`, then add everyone else under **Users**.
@@ -64,16 +65,18 @@ reset the database.
 **Signing in** uses username and password. Usernames are case-insensitive. Failed attempts are limited to 10 per
 15 minutes from each IP, and also to 10 per 15 minutes against each username from any IP.
 
-**Users page** (`/settings/users`, admins only; *Users* in the nav). Here an admin can add people, reset their
+**Users page** (`/settings/users`, admins only; linked from **Settings**). Here an admin can add people, reset their
 passwords, disable or re-enable them, and make or unmake admins. The last active admin can't be disabled or demoted.
 Disabling someone, or resetting their password, signs them out on their next request. Everyone can change their own
-password from the page their name links to in the nav (`/settings/password`). Doing so signs out their other devices.
+password at `/settings/password` (linked from Settings, and from their name in the nav). Doing so signs out their
+other devices. Exporting and importing the library (also on Settings) is for admins only.
 
 **Who did what.**
 
 - Each conversation belongs to the person who started it. The sidebar shows **Mine** by default, and **Everyone's**
   lists the whole household's with the asker's name. Anyone can open any conversation. Conversation search follows
-  the same toggle.
+  the same toggle. Images attached to a question (`/api/chat-images/<id>`) follow the same rule as their
+  conversation: any signed-in member, never a logged-out visitor.
 - Shares show *Shared by …* on the Shares page (the public `/s/<token>` page never names anyone), notes show
   *Added by …*, and the Maintenance page shows who last marked a task done.
 - When the assistant creates a share or logs maintenance, it is credited to the person who started the conversation.
@@ -90,9 +93,25 @@ protection, as the rest of the app does, so a cross-site POST arrives without a 
 `AUTH_DISABLED=true` (local development only) skips sign-in entirely. Everything is then treated as everyone's, and
 the Users page is open.
 
+**Export and import carry the accounts.** An export includes the `users` table, password hashes included, so keep
+export files private. Importing replaces the accounts along with everything else. Afterwards, sign in with an account
+from the export. Importing an export made before accounts existed leaves no accounts, so the login page returns to
+first-account setup, which needs `APP_PASSWORD` again.
+
 ## Photos and links
 
 Photos (including iPhone HEIC/HEIF, via `pillow-heif`, whose wheels bundle libheif so no extra system packages are needed) are turned into PDFs and OCRed. On the Manuals page you can also paste a link to a manufacturer PDF or photo: the server downloads it (http/https only, private and internal addresses refused on every redirect, size-capped, type checked by Content-Type and file contents) and then treats it exactly like an upload, remembering the source URL.
+
+## Asking with photos
+
+Sometimes the quickest question is a picture: the rating plate behind the fridge, an `E24` blinking on the dishwasher, a part that fell off. Click **📎** next to the chat box, paste a screenshot (Ctrl/Cmd+V), or drag images onto the box. Up to 4 images per question; thumbnails with a × to remove them show before you send, and the images stay in your message bubble in the history. A photo with no text works too: the assistant describes what it sees, reads any model number or error code, and then searches the manuals for it.
+
+- PNG, JPEG, WebP, GIF and HEIC/HEIF are accepted, identified by decoding them with Pillow (the extension and Content-Type are ignored); anything else is refused with a message. Each upload is capped at 20 MB.
+- The server downscales each image to at most 1600 px on the long side, applies the EXIF rotation, and re-encodes it (screenshots as PNG, photos as JPEG, at most about 1.5 MB). Re-encoding drops EXIF, so GPS position and camera details are not kept.
+- Files are stored in `{DATA_DIR}/chat_images/`, linked to the message in the `message_images` table, served at `/api/chat-images/<id>` only to someone who may open its conversation (see [Accounts](#accounts)), and deleted with their conversation. Shared answers never include them: a share is a snapshot of the answer text only.
+- Only the question you are sending carries its images to the model. Earlier turns are resent as text with an `[image previously attached]` marker in place of each image: images cost many tokens, the history keeps up to 10 turns, and the assistant's earlier answer already records what it read from the photo. To ask about a detail of an earlier photo, attach it again.
+- With `LLM_TOOLS=false` the query planner sees the text only, and the images go to the final answer call.
+- The model must accept image input; the default `deepseek/deepseek-v4.1-flash-1017` does. If the configured `OPENROUTER_MODEL` refuses images, the chat shows an inline error suggesting a vision-capable model. Set `CHAT_IMAGES=false` to hide the attach button and refuse image uploads.
 
 ## Reading scans and diagrams with vision
 
@@ -111,6 +130,15 @@ Tesseract mangles tables, wiring diagrams and exploded parts views. So after a m
 - Requests use the shared OpenRouter client, so 429 and 5xx errors are retried with backoff. If a manual is still rate limited after those retries, its remaining pages keep their Tesseract text. Token usage is logged per page and per manual.
 - If a request fails, the page keeps its Tesseract text. A vision failure never fails the ingest. Without `OPENROUTER_API_KEY`, vision is skipped silently.
 - Each page records which method produced its text (`text`, `tesseract` or `vision`) in `pages.ocr_method`, and the manual page shows e.g. "12 pages read with vision". Click **Re-index** to re-read an existing manual.
+
+## Semantic search
+
+Keyword search (SQLite FTS5) is great at model numbers and units, but misses paraphrases: *"outlet tubing width"* shares no word with *"drain hose diameter"*. With `SEMANTIC_SEARCH=true` (the default) every chunk also gets a 384-dim embedding from the local ONNX model `BAAI/bge-small-en-v1.5` (via `fastembed`, CPU only, no API calls), stored in a `sqlite-vec` table (`chunks_vec`, migration `0011_vec.sql`).
+
+- **Search:** `search_manuals` and the `/search` page take the FTS top 30 and the vector top 30 and merge them with Reciprocal Rank Fusion (k = 60), keeping the manual filter, the preferred-language ordering and the highlighted snippets. `/search` labels each hit *keyword*, *semantic* or both, with its rank in each list.
+- **Indexing:** after a manual is chunked (upload or re-index) the worker runs an `embed` job in batches of 32. On startup, once the model has loaded, a backfill queues `embed` jobs for any ready manual with chunks missing vectors, so existing libraries are upgraded automatically. Deleting or re-indexing a manual deletes its vectors.
+- **Model cache:** the model lives in `$DATA_DIR/models` so it survives restarts. The Docker image pre-downloads it to `/opt/models` at build time (about +230 MB for the model, `onnxruntime` and friends; skip with `--build-arg PRELOAD_EMBED_MODEL=0`).
+- **Graceful degradation:** the model loads in the background and search stays keyword-only until it is ready. If `fastembed`, the model (e.g. no network to HuggingFace) or the `sqlite-vec` extension is unavailable, a warning is logged and everything keeps working on FTS alone. Set `SEMANTIC_SEARCH=false` to skip it entirely. The `/search` page shows the current state.
 
 ## Tags
 
@@ -141,6 +169,20 @@ Sometimes an answer is for someone outside the house: the plumber who needs the 
 A share is a snapshot: it doesn't change if the conversation does. Manual citations turn into plain-text sources (*"Bosch dishwasher manual, p. 12"*) because the PDFs themselves stay private, and the page has no links back into the site. The assistant only creates a share when asked, writes it to make sense on its own, and leaves household notes and other private details out unless you ask for them. Pages are marked `noindex`.
 
 The **Shares** page lists every live link with a copy button and a **Revoke** button; a revoked link returns 404. Set `APP_URL` so the links are absolute and point at your public hostname.
+
+## Export & import
+
+**Settings → Download export** (`GET /settings/export`) downloads one zip of the whole library:
+
+- `manualagerie.db`: a consistent snapshot taken with `VACUUM INTO`, never a copy of the live file (login-attempt IPs are dropped; user accounts and their password hashes are kept, see [Accounts](#accounts))
+- `files/…`: every stored original
+- `manifest.json`: the schema version (latest migration number), the export time and row/file counts
+
+The cookie secret, `backups/`, `tmp/` and any caches are never included. The zip is built in `/data/tmp`, streamed from disk and deleted once it has been sent, so make sure there is free space for one extra copy of the library.
+
+**Settings → Replace library** (`POST /settings/import`) **replaces** everything with an export; nothing is merged, and you have to type `REPLACE` to confirm. Before anything live changes, the archive is unpacked into `/data/tmp` and checked: the manifest must be present, the schema can't be newer than this app's, the DB must pass `PRAGMA integrity_check` and is migrated to the current schema there, paths can't be absolute or contain `..`, and total size and entry count are capped (`IMPORT_MAX_MB`, `IMPORT_MAX_FILES`). A rejected import changes nothing.
+
+Then the background worker is paused (an import waits up to two minutes for a running ingest job to finish), the current DB and files are moved to `/data/backups/pre-import-<timestamp>/`, the new files directory is renamed into place, and the DB is replaced with SQLite's backup API in a single transaction, so open connections stay valid. If anything fails partway through, the previous library is put back. The last 3 pre-import backups are kept. To undo an import, stop the app, delete `manualagerie.db-wal`/`-shm`, and copy that folder's `manualagerie.db` and `files/` back into `/data`.
 
 ## Themes
 

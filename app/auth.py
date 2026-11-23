@@ -77,6 +77,15 @@ def is_admin(request: Request) -> bool:
     return get_settings().auth_disabled or bool(u and u["is_admin"])
 
 
+def can_view_conversation(request: Request, conv) -> bool:
+    """Who may open a conversation (and anything attached to it, like chat images).
+
+    One household: any signed-in, enabled member may open any conversation ("Everyone's"); the
+    own/everyone toggle only changes what is listed. Logged-out visitors and missing rows: never.
+    """
+    return conv is not None and is_authed(request)
+
+
 def require_admin(request: Request) -> None:
     if not is_admin(request):
         raise HTTPException(403, "Admins only")

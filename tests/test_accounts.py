@@ -1,9 +1,11 @@
 import base64
+import io
 import json
 
 import pytest
 from fastapi.testclient import TestClient
 from itsdangerous import TimestampSigner
+from PIL import Image
 
 from app import auth, db
 from app.config import get_settings
@@ -218,8 +220,13 @@ def test_non_admins_cannot_reach_admin_pages(conn):
     target = ensure_user("erin", "erin-password", is_admin=False)
     with TestClient(app) as c:
         login(c, "erin", "erin-password", is_admin=False)
-        page = c.get("/").text
+        page = c.get("/settings").text
         assert 'href="/settings/users"' not in page and 'href="/settings/password"' in page
+        assert 'action="/settings/import"' not in page and 'href="/settings/export"' not in page
+        assert c.get("/settings/export").status_code == 403
+        r = c.post("/settings/import", data={"confirm": "REPLACE"},
+                   files={"archive": ("x.zip", b"PK\x05\x06" + b"\0" * 18, "application/zip")})
+        assert r.status_code == 403
         assert c.get("/settings/users").status_code == 403
         assert c.post("/settings/users", data={"username": "x1", "password": "xxxxxxxx"}).status_code == 403
         assert c.post(f"/settings/users/{target}/admin").status_code == 403
@@ -234,7 +241,7 @@ def test_non_admins_cannot_reach_admin_pages(conn):
 def test_admin_adds_users(conn):
     with TestClient(app) as c:
         login(c, "alice", "alice-password")
-        assert 'href="/settings/users"' in c.get("/").text
+        assert 'href="/settings/users"' in c.get("/settings").text
         r = c.post("/settings/users", data={"username": "Frank", "display_name": "Frank F",
                                             "password": "frank-password"}, follow_redirects=False)
         assert r.status_code == 303
@@ -314,6 +321,44 @@ def test_conversations_are_scoped_by_user(conn):
         assert "Hana furnace question" in r.text and "Ian fridge question" not in r.text
     for cid in (h, i, legacy):
         chat_repo.delete_conversation(conn, cid)
+    conn.commit()
+
+
+def test_chat_images_follow_conversation_visibility(conn, monkeypatch):
+    """/api/chat-images/<id> uses the /c/<id> rule via message_images.conversation_id: any signed-in
+    household member may see it (the Everyone's view), nobody else, and a disabled member loses it at once."""
+    from app import chat_images
+
+    ensure_user("kim", "kim-password", is_admin=False, display_name="Kim")
+    ensure_user("lee", "lee-password", is_admin=False, display_name="Lee")
+    kim_id = users_repo.get_by_username(conn, "kim")["id"]
+    lee_id = users_repo.get_by_username(conn, "lee")["id"]
+    cid = chat_repo.create_conversation(conn, "Kim's error code", user_id=kim_id)
+    mid = chat_repo.add_message(conn, cid, "user", "what does this mean?")
+    buf = io.BytesIO()
+    Image.new("RGB", (40, 30), (200, 30, 30)).save(buf, "PNG")
+    img_id = chat_images.save(conn, cid, mid, chat_images.process(buf.getvalue()))
+    conn.commit()
+    url = f"/api/chat-images/{img_id}"
+    with TestClient(app) as kim, TestClient(app) as lee, TestClient(app) as anon:
+        login(kim, "kim", "kim-password")
+        login(lee, "lee", "lee-password")
+        assert kim.get(url).status_code == 200  # the owner
+        assert lee.get(url).status_code == 200  # another member: same as opening /c/<id> via Everyone's
+        assert lee.get(f"/c/{cid}?all=1").status_code == 200
+        assert anon.get(url).status_code == 401  # logged out
+        assert kim.get("/api/chat-images/999999").status_code == 404
+
+        users_repo.set_disabled(conn, lee_id, True)
+        conn.commit()
+        assert lee.get(url).status_code == 401  # disabled: session ends on the next request
+
+        # An orphaned row (no conversation behind it) is never served.
+        assert chat_repo.get_image_with_conversation(conn, img_id)["conv_user_id"] == kim_id
+        chat_repo.delete_conversation(conn, cid)
+        conn.commit()
+        assert kim.get(url).status_code == 404
+    users_repo.set_disabled(conn, lee_id, False)
     conn.commit()
 
 

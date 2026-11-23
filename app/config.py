@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     llm_tools: bool = True
     max_tool_rounds: int = 6
+    chat_images: bool = True
 
     app_password: str = ""
     auth_disabled: bool = False
@@ -29,9 +30,14 @@ class Settings(BaseSettings):
     preferred_langs: str = "en"
     strip_other_langs: bool = True
     backup_keep: int = 7
+    import_max_mb: int = 20480
+    import_max_files: int = 20000
     catalog_inline_limit: int = 300
     notes_inline_chars: int = 20000
     start_worker: bool = True
+    # Phase 4: hybrid keyword + vector search. Falls back to FTS-only when off or unavailable.
+    semantic_search: bool = True
+    embed_bundled_dir: Path | None = None  # read-only model cache baked into the image (Dockerfile)
 
     @property
     def metadata_model(self) -> str:
@@ -54,12 +60,20 @@ class Settings(BaseSettings):
         return self.data_dir / "thumbs"
 
     @property
+    def chat_images_dir(self) -> Path:
+        return self.data_dir / "chat_images"
+
+    @property
     def tmp_dir(self) -> Path:
         return self.data_dir / "tmp"
 
     @property
     def backups_dir(self) -> Path:
         return self.data_dir / "backups"
+
+    @property
+    def models_dir(self) -> Path:
+        return self.data_dir / "models"
 
     @property
     def preferred_lang_list(self) -> list[str]:
