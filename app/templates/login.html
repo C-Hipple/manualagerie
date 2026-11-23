@@ -3,17 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign in · Manualagerie</title>
+  <title>{{ 'Set up' if setup else 'Sign in' }} · Manualagerie</title>
   {% include "_theme_head.html" %}
 </head>
 <body class="login-body">
   <div class="login-theme">{% include "_theme_picker.html" %}</div>
+  {% if setup %}
+  <form method="post" action="/login/setup" class="login card">
+    <h1>📘 Manualagerie</h1>
+    <p><strong>Create the first (admin) account.</strong></p>
+    <p class="muted small">Enter the household password (<code>APP_PASSWORD</code>) to prove you run this server,
+      then choose your own username and password. After this, everyone signs in with their own account.</p>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <input type="password" name="app_password" placeholder="Household password (APP_PASSWORD)" autofocus required
+           autocomplete="off" aria-label="Household password">
+    <input type="text" name="username" placeholder="Username" required value="{{ username or '' }}"
+           autocomplete="username" autocapitalize="none" aria-label="Username">
+    <input type="text" name="display_name" placeholder="Display name (e.g. Dana)" value="{{ display_name or '' }}"
+           autocomplete="name" aria-label="Display name">
+    <input type="password" name="password" placeholder="New password (8+ characters)" required minlength="8"
+           autocomplete="new-password" aria-label="New password">
+    <input type="password" name="password2" placeholder="New password again" required minlength="8"
+           autocomplete="new-password" aria-label="New password again">
+    <button class="primary">Create admin account</button>
+  </form>
+  {% else %}
   <form method="post" action="/login" class="login card">
     <h1>📘 Manualagerie</h1>
     <p class="muted">Every manual in the house, one question away.</p>
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
-    <input type="password" name="password" placeholder="Household password" autofocus required autocomplete="current-password">
+    <input type="text" name="username" placeholder="Username" required value="{{ username or '' }}"
+           {% if not username %}autofocus{% endif %} autocomplete="username" autocapitalize="none" aria-label="Username">
+    <input type="password" name="password" placeholder="Password" required {% if username %}autofocus{% endif %}
+           autocomplete="current-password" aria-label="Password">
     <button class="primary">Sign in</button>
   </form>
+  {% endif %}
 </body>
 </html>

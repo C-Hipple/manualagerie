@@ -5,16 +5,22 @@ import sqlite3
 from ..search.fts import build_match_query
 
 
-def create_conversation(conn: sqlite3.Connection, title: str | None = None) -> int:
-    return conn.execute("INSERT INTO conversations (title) VALUES (?)", (title,)).lastrowid
+def create_conversation(conn: sqlite3.Connection, title: str | None = None, user_id: int | None = None) -> int:
+    return conn.execute("INSERT INTO conversations (title, user_id) VALUES (?, ?)", (title, user_id)).lastrowid
 
 
-def list_conversations(conn: sqlite3.Connection):
-    return conn.execute("SELECT * FROM conversations ORDER BY updated_at DESC, id DESC").fetchall()
+def list_conversations(conn: sqlite3.Connection, user_id: int | None = None):
+    """Newest first. With `user_id`, only that user's; without, everyone's (with the asker's name)."""
+    where, args = ("WHERE c.user_id = ?", (user_id,)) if user_id is not None else ("", ())
+    return conn.execute(
+        f"SELECT c.*, u.display_name AS owner_name FROM conversations c LEFT JOIN users u ON u.id = c.user_id "
+        f"{where} ORDER BY c.updated_at DESC, c.id DESC", args).fetchall()
 
 
 def get_conversation(conn: sqlite3.Connection, conv_id: int):
-    return conn.execute("SELECT * FROM conversations WHERE id = ?", (conv_id,)).fetchone()
+    return conn.execute(
+        "SELECT c.*, u.display_name AS owner_name FROM conversations c LEFT JOIN users u ON u.id = c.user_id "
+        "WHERE c.id = ?", (conv_id,)).fetchone()
 
 
 def set_title(conn: sqlite3.Connection, conv_id: int, title: str) -> None:
@@ -85,24 +91,29 @@ def _render_snippet(raw: str) -> str:
     return escaped.replace(_HL_OPEN, "<mark>").replace(_HL_CLOSE, "</mark>")
 
 
-def search_conversations(conn: sqlite3.Connection, query: str, limit: int = 20) -> list[dict]:
-    """Conversations with a message matching `query`, each with a safe HTML snippet (only <mark> tags)."""
+def search_conversations(conn: sqlite3.Connection, query: str, limit: int = 20,
+                         user_id: int | None = None) -> list[dict]:
+    """Conversations with a message matching `query`, each with a safe HTML snippet (only <mark> tags).
+
+    With `user_id`, only that user's conversations are searched.
+    """
     match = build_match_query(query)
     if not match:
         return []
+    owner = "AND c.user_id = ?" if user_id is not None else ""
     rows = conn.execute(
-        """
+        f"""
         SELECT c.id, c.title,
                snippet(messages_fts, 0, char(2), char(3), '…', 16) AS snippet,
                bm25(messages_fts) AS score
         FROM messages_fts
         JOIN messages m ON m.id = messages_fts.rowid
         JOIN conversations c ON c.id = m.conversation_id
-        WHERE messages_fts MATCH ?
+        WHERE messages_fts MATCH ? {owner}
         ORDER BY score
         LIMIT ?
         """,
-        (match, limit * 5),
+        (match, *((user_id,) if user_id is not None else ()), limit * 5),
     ).fetchall()
     out, seen = [], set()
     for r in rows:  # best-ranked message per conversation

@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse, StreamingResponse
 from pydantic import BaseModel
 
-from .. import db
+from .. import auth, db
 from ..llm import agent
 from ..repo import chat as chat_repo
 from ..repo import manuals as manuals_repo
@@ -19,9 +19,17 @@ def _script_json(obj) -> str:
     return json.dumps(obj).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
+def _scope(request: Request) -> tuple[int | None, bool]:
+    """(user id to filter by, or None for everyone's; whether the "Everyone's" toggle is on)."""
+    everyone = request.query_params.get("all") == "1"
+    uid = auth.current_user_id(request)
+    return (None if everyone else uid), everyone or uid is None
+
+
 def _page(request: Request, conv_id: int | None):
+    owner, everyone = _scope(request)
     with db.get_conn() as conn:
-        convs = chat_repo.list_conversations(conn)
+        convs = chat_repo.list_conversations(conn, owner)
         conv = chat_repo.get_conversation(conn, conv_id) if conv_id else None
         if conv_id and conv is None:
             raise HTTPException(404, "Conversation not found")
@@ -35,6 +43,7 @@ def _page(request: Request, conv_id: int | None):
     return templates.TemplateResponse(request, "chat.html", {
         "convs": convs, "conv": conv, "msgs": msgs, "titles_json": _script_json(titles), "ready_count": ready,
         "note_titles_json": _script_json(note_titles), "note_count": len(notes),
+        "everyone": everyone, "can_scope": auth.current_user_id(request) is not None,
     })
 
 
@@ -46,12 +55,15 @@ def chat_home(request: Request):
 @router.get("/api/conversations/search")
 def search_conversations(request: Request, q: str = ""):
     q = q.strip()[:200]
+    owner, everyone = _scope(request)
     with db.get_conn() as conn:
         if not q:
             return templates.TemplateResponse(request, "_conv_list.html", {
-                "convs": chat_repo.list_conversations(conn), "conv": None, "hits": None, "q": ""})
-        hits = chat_repo.search_conversations(conn, q)
-    return templates.TemplateResponse(request, "_conv_list.html", {"convs": [], "conv": None, "hits": hits, "q": q})
+                "convs": chat_repo.list_conversations(conn, owner), "conv": None, "hits": None, "q": "",
+                "everyone": everyone})
+        hits = chat_repo.search_conversations(conn, q, user_id=owner)
+    return templates.TemplateResponse(request, "_conv_list.html", {"convs": [], "conv": None, "hits": hits, "q": q,
+                                                                   "everyone": everyone})
 
 
 @router.get("/c/{conv_id}")
@@ -60,9 +72,9 @@ def chat_conv(request: Request, conv_id: int):
 
 
 @router.post("/api/conversations")
-def create_conversation():
+def create_conversation(request: Request):
     with db.get_conn() as conn:
-        cid = chat_repo.create_conversation(conn)
+        cid = chat_repo.create_conversation(conn, user_id=auth.current_user_id(request))
     return {"id": cid}
 
 

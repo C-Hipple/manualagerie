@@ -6,7 +6,7 @@ Ask *"What size is the hose connector on my dishwasher?"*. The assistant finds t
 ## Run locally (Docker)
 
 ```bash
-cp .env.example .env               # set APP_PASSWORD and OPENROUTER_API_KEY (or export the key in your shell)
+cp .env.example .env               # set APP_PASSWORD (for the first account) and OPENROUTER_API_KEY
 docker build -t manualagerie .
 docker run -d --name manualagerie --env-file .env -e OPENROUTER_API_KEY \
   -p 127.0.0.1:8765:8080 -v "$PWD/data:/data" manualagerie
@@ -39,10 +39,56 @@ If your model doesn't support tool calling, set `LLM_TOOLS=false` to use the sim
 
 - Mount a persistent volume at `/data`. It holds the SQLite DB, the original PDFs, nightly backups and the auto-generated cookie secret.
 - Run **exactly one replica**: SQLite on a volume can't be shared between replicas.
-- Required env: `OPENROUTER_API_KEY` (see [LLM backend](#llm-backend-openrouter)) and `APP_PASSWORD`. Set `APP_URL=https://…` so session cookies are marked Secure.
+- Required env: `OPENROUTER_API_KEY` (see [LLM backend](#llm-backend-openrouter)), and `APP_PASSWORD` until the first account exists. The app refuses to start without `APP_PASSWORD` while there are no accounts. After that it isn't needed (see [Accounts](#accounts)). Set `APP_URL=https://…` so session cookies are marked Secure.
+- After deploying (or upgrading from the shared-password version), open the site and create the first (admin) account with `APP_PASSWORD`, then add everyone else under **Users**.
+- If a reverse proxy sits in front, make sure it sets `X-Forwarded-For`: login rate limiting is keyed on that header's first address.
 - Health check: `GET /healthz`.
 
 All settings are listed in `.env.example`.
+
+## Accounts
+
+Manualagerie is one household's app: the library, notes, maintenance tasks and shares belong to everyone. Each person
+still signs in with their own account, so the app knows who asked what and who did what.
+
+**First run.** While no account exists, the login page shows *Create the first (admin) account*. Creating it asks for
+the household password, `APP_PASSWORD`, so a stranger who finds the site can't claim it. Then pick a username, a
+display name and your own password. Upgrading an existing install works the same way: deploy, open the site, and
+create the first account with your current `APP_PASSWORD`. Sessions from before accounts stop working, so everyone
+signs in once more.
+
+**`APP_PASSWORD` after that.** It is only used for that first account. Once any account exists, the app starts and
+runs without it, and nobody can sign in with it. You can remove it from the environment, or keep it in case you ever
+reset the database.
+
+**Signing in** uses username and password. Usernames are case-insensitive. Failed attempts are limited to 10 per
+15 minutes from each IP, and also to 10 per 15 minutes against each username from any IP.
+
+**Users page** (`/settings/users`, admins only; *Users* in the nav). Here an admin can add people, reset their
+passwords, disable or re-enable them, and make or unmake admins. The last active admin can't be disabled or demoted.
+Disabling someone, or resetting their password, signs them out on their next request. Everyone can change their own
+password from the page their name links to in the nav (`/settings/password`). Doing so signs out their other devices.
+
+**Who did what.**
+
+- Each conversation belongs to the person who started it. The sidebar shows **Mine** by default, and **Everyone's**
+  lists the whole household's with the asker's name. Anyone can open any conversation. Conversation search follows
+  the same toggle.
+- Shares show *Shared by …* on the Shares page (the public `/s/<token>` page never names anyone), notes show
+  *Added by …*, and the Maintenance page shows who last marked a task done.
+- When the assistant creates a share or logs maintenance, it is credited to the person who started the conversation.
+- Anything from before accounts shows as *unknown*.
+
+**Security notes.** Passwords are hashed with scrypt (N=2^14, r=8, p=1) and a random 16-byte salt per user, and
+compared in constant time. An unknown username costs the same hash work as a wrong password. The signed session
+cookie holds the user id and a per-user session generation, and both are checked against the database on every
+request. Disabling a user or changing their password bumps the generation, which kills every existing cookie for that
+user. Logging in always issues a fresh cookie. Forms rely on the session cookie being `SameSite=Lax` for CSRF
+protection, as the rest of the app does, so a cross-site POST arrives without a session. `/login`, `/login/setup`,
+`/healthz`, `/static/…` and exactly `/s/<token>` are the only routes reachable while signed out.
+
+`AUTH_DISABLED=true` (local development only) skips sign-in entirely. Everything is then treated as everyone's, and
+the Users page is open.
 
 ## Photos and links
 
@@ -90,7 +136,7 @@ The search box above the conversation list finds past chats by what you or the a
 
 ## Sharing
 
-Sometimes an answer is for someone outside the house: the plumber who needs the drain hose size, a sitter who needs to know how to reset the furnace. Click **🔗 Share** under any answer, or ask the assistant *"make me a link I can send the plumber"*, and you get a public, read-only page at `/s/<token>` that opens without the household password.
+Sometimes an answer is for someone outside the house: the plumber who needs the drain hose size, a sitter who needs to know how to reset the furnace. Click **🔗 Share** under any answer, or ask the assistant *"make me a link I can send the plumber"*, and you get a public, read-only page at `/s/<token>` that opens without signing in.
 
 A share is a snapshot: it doesn't change if the conversation does. Manual citations turn into plain-text sources (*"Bosch dishwasher manual, p. 12"*) because the PDFs themselves stay private, and the page has no links back into the site. The assistant only creates a share when asked, writes it to make sense on its own, and leaves household notes and other private details out unless you ask for them. Pages are marked `noindex`.
 

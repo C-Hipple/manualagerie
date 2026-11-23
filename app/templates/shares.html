@@ -15,7 +15,7 @@
                   hx-swap="outerHTML" hx-confirm="Revoke the link to “{{ s.title }}”? It will stop working.">Revoke</button>
         </div>
       </div>
-      <p class="small"><span class="muted">{{ s.created_at }} UTC ·</span>
+      <p class="small"><span class="muted">Shared by {{ s.created_by_name or 'unknown' }} · {{ s.created_at }} UTC ·</span>
         {% include "_share_link.html" %}</p>
     </article>
     {% else %}

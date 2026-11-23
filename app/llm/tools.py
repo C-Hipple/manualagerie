@@ -117,7 +117,16 @@ TOOLS = [
 ]
 
 
-def log_maintenance(conn: sqlite3.Connection, task, date_str: str | None = None) -> str:
+def _conversation_owner(conn: sqlite3.Connection, conv_id: int | None) -> int | None:
+    """Who the assistant acts for: the user who started the conversation (None before accounts)."""
+    if conv_id is None:
+        return None
+    row = conn.execute("SELECT user_id FROM conversations WHERE id = ?", (conv_id,)).fetchone()
+    return row["user_id"] if row else None
+
+
+def log_maintenance(conn: sqlite3.Connection, task, date_str: str | None = None,
+                    created_by: int | None = None) -> str:
     task_row, candidates = maintenance_repo.find(conn, task)
     if task_row is None:
         if candidates:
@@ -131,7 +140,7 @@ def log_maintenance(conn: sqlite3.Connection, task, date_str: str | None = None)
             return f"Invalid date {date_str!r}; use YYYY-MM-DD. Nothing was logged."
         if done_on > date.today():
             return "That date is in the future. Nothing was logged."
-    maintenance_repo.mark_done(conn, task_row["id"], done_on, note="logged via assistant")
+    maintenance_repo.mark_done(conn, task_row["id"], done_on, note="logged via assistant", created_by=created_by)
     t = maintenance_repo.decorate(maintenance_repo.get(conn, task_row["id"]))
     return (f"Logged: '{t['title']}' done on {done_on.isoformat()}. Last done is now {t['last_done']}; "
             f"next due {t['due']}.")
@@ -195,7 +204,8 @@ def create_share(conn: sqlite3.Connection, title: str, content: str, conv_id: in
                  base_url: str | None = None) -> str:
     if not str(content or "").strip():
         return "Nothing to share: `content` is empty."
-    _, token = shares_repo.create(conn, title, content, conversation_id=conv_id)
+    _, token = shares_repo.create(conn, title, content, conversation_id=conv_id,
+                                  created_by=_conversation_owner(conn, conv_id))
     url = shares_repo.public_url(token, base_url)
     return (f"Created a public, read-only page: {url}\n"
             f"Give the user this link as a markdown link, e.g. [{shares_repo.clean_title(title)}]({url}). Anyone "
@@ -250,7 +260,7 @@ def dispatch(conn: sqlite3.Connection, name: str, raw_args: str, *, conv_id: int
         if name == "create_share":
             return create_share(conn, args.get("title", ""), args["content"], conv_id, base_url), args
         if name == "log_maintenance":
-            return log_maintenance(conn, args["task"], args.get("date")), args
+            return log_maintenance(conn, args["task"], args.get("date"), _conversation_owner(conn, conv_id)), args
     except (KeyError, TypeError, ValueError) as e:
         return f"Tool error: {type(e).__name__}: {e}", args
     return f"Unknown tool {name}", args

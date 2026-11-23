@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
-from .. import db
+from .. import auth, db
 from ..repo import maintenance as repo
 from ..repo import manuals as manuals_repo
 from ..web import templates
@@ -74,10 +74,10 @@ async def maintenance_update(request: Request, task_id: int):
 
 
 @router.post("/maintenance/{task_id}/done")
-def maintenance_done(task_id: int):
+def maintenance_done(request: Request, task_id: int):
     with db.get_conn() as conn:
         _get_or_404(conn, task_id)
-        repo.mark_done(conn, task_id)
+        repo.mark_done(conn, task_id, created_by=auth.current_user_id(request))
     return RedirectResponse("/maintenance", status_code=303)
 
 

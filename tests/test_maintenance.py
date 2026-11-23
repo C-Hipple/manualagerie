@@ -10,10 +10,11 @@ from app.main import app
 from app.repo import chat as chat_repo
 from app.repo import maintenance as repo
 from app.repo import manuals as manuals_repo
+from tests.conftest import login
 
 
 def _login(c):
-    assert c.post("/login", data={"password": "pw"}, follow_redirects=False).status_code == 303
+    assert login(c).status_code == 303
 
 
 def _clean(conn):

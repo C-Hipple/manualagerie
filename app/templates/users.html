@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Users · Manualagerie{% endblock %}
+{% block content %}
+<main class="page users-page">
+  <h1>Users</h1>
+  <p class="muted">Everyone in the household shares the same manuals, notes, maintenance and shares. Accounts record
+    who asked what and who did what. Disabling a user signs them out on their next click.</p>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  {% if message %}<p class="ok">{{ message }}</p>{% endif %}
+
+  <table class="manuals users">
+    <thead><tr><th>User</th><th>Role</th><th class="hide-sm">Added</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr id="user-{{ u.id }}">
+        <td><strong>{{ u.display_name }}</strong> <span class="muted small">@{{ u.username }}</span>
+          {% if u.id == me %}<span class="badge">you</span>{% endif %}
+          {% if u.disabled_at %}<span class="badge error">disabled</span>{% endif %}</td>
+        <td>{{ 'Admin' if u.is_admin else 'Member' }}</td>
+        <td class="hide-sm muted small">{{ u.created_at[:10] }}</td>
+        <td class="row">
+          <form method="post" action="/settings/users/{{ u.id }}/admin" class="inline">
+            <button>{{ 'Remove admin' if u.is_admin else 'Make admin' }}</button></form>
+          {% if u.disabled_at %}
+          <form method="post" action="/settings/users/{{ u.id }}/enable" class="inline"><button>Enable</button></form>
+          {% else %}
+          <form method="post" action="/settings/users/{{ u.id }}/disable" class="inline"
+                onsubmit="return confirm('Disable {{ u.username }}? They will be signed out.')">
+            <button class="danger">Disable</button></form>
+          {% endif %}
+          <form method="post" action="/settings/users/{{ u.id }}/password" class="inline">
+            <input type="password" name="password" placeholder="New password" minlength="8" required
+                   autocomplete="new-password" aria-label="New password for {{ u.username }}">
+            <button>Reset password</button></form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="post" action="/settings/users" class="card meta-form">
+    <h2>Add a user</h2>
+    <label>Username<input name="username" required value="{{ form.username or '' }}" autocapitalize="none"
+                          autocomplete="off" placeholder="e.g. dana"></label>
+    <label>Display name<input name="display_name" value="{{ form.display_name or '' }}" placeholder="e.g. Dana"></label>
+    <label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+    <label class="check"><span><input type="checkbox" name="is_admin" value="1"> Admin (can manage users)</span></label>
+    <div class="row"><button class="primary">Add user</button></div>
+  </form>
+</main>
+{% endblock %}

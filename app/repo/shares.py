@@ -55,13 +55,14 @@ def snapshot(conn: sqlite3.Connection, body: str) -> tuple[str, list[str]]:
     return NOTE_CITATION_RE.sub("(household note)", body), cites
 
 
-def create(conn: sqlite3.Connection, title: str, body: str, *, conversation_id: int | None = None) -> tuple[int, str]:
+def create(conn: sqlite3.Connection, title: str, body: str, *, conversation_id: int | None = None,
+           created_by: int | None = None) -> tuple[int, str]:
     """Snapshot the body and store it under a fresh token. Returns (id, token)."""
     body, cites = snapshot(conn, body)
     token = new_token()
     share_id = conn.execute(
-        "INSERT INTO shares (token, title, body, citations, conversation_id) VALUES (?, ?, ?, ?, ?)",
-        (token, clean_title(title), body, json.dumps(cites) if cites else None, conversation_id),
+        "INSERT INTO shares (token, title, body, citations, conversation_id, created_by) VALUES (?, ?, ?, ?, ?, ?)",
+        (token, clean_title(title), body, json.dumps(cites) if cites else None, conversation_id, created_by),
     ).lastrowid
     return share_id, token
 
@@ -76,7 +77,10 @@ def get_public(conn: sqlite3.Connection, token: str):
 
 
 def list_active(conn: sqlite3.Connection):
-    return conn.execute("SELECT * FROM shares WHERE revoked_at IS NULL ORDER BY created_at DESC, id DESC").fetchall()
+    """Live shares, newest first, with `created_by_name` (NULL for shares from before accounts)."""
+    return conn.execute(
+        "SELECT s.*, u.display_name AS created_by_name FROM shares s LEFT JOIN users u ON u.id = s.created_by "
+        "WHERE s.revoked_at IS NULL ORDER BY s.created_at DESC, s.id DESC").fetchall()
 
 
 def revoke(conn: sqlite3.Connection, share_id: int) -> None:

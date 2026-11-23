@@ -15,6 +15,7 @@ from app.ingest.extract import Page, Paragraph, extract_pages
 from app.ingest.worker import process_manual
 from app.repo import manuals as manuals_repo
 from app.search import fts
+from tests.conftest import login
 
 TABLE_MD = """```markdown
 # WIRING DIAGRAM
@@ -214,7 +215,7 @@ def test_detail_page_shows_vision_count(conn):
     conn.commit()
     try:
         with TestClient(app) as c:
-            c.post("/login", data={"password": "pw"}, follow_redirects=False)
+            login(c)
             html = c.get(f"/manuals/{mid}").text
     finally:  # the DB is shared across the test session; don't leave a manual without a file behind
         manuals_repo.delete(conn, mid)

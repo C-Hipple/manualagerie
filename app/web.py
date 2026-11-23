@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi.templating import Jinja2Templates
 
-from . import db, themes
+from . import auth, db, themes
 from .repo import maintenance as maintenance_repo
 from .repo import manuals as manuals_repo
 
@@ -29,3 +29,5 @@ templates.env.globals["status_label"] = _status_label
 templates.env.globals["themes"] = themes.THEMES
 templates.env.globals["theme_of"] = themes.current
 templates.env.globals["tag_list"] = manuals_repo.parse_tags
+templates.env.globals["current_user"] = auth.current_user
+templates.env.globals["is_admin"] = auth.is_admin

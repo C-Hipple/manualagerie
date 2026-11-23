@@ -38,7 +38,9 @@ def decorate(task, today: date | None = None) -> dict:
 
 def list_all(conn: sqlite3.Connection, today: date | None = None) -> list[dict]:
     rows = conn.execute(
-        "SELECT t.*, coalesce(m.device_name, m.title, m.filename) AS manual_name "
+        "SELECT t.*, coalesce(m.device_name, m.title, m.filename) AS manual_name, "
+        "  (SELECT u.display_name FROM maintenance_log l LEFT JOIN users u ON u.id = l.created_by "
+        "   WHERE l.task_id = t.id ORDER BY l.done_on DESC, l.id DESC LIMIT 1) AS last_done_by "
         "FROM maintenance_tasks t LEFT JOIN manuals m ON m.id = t.manual_id").fetchall()
     tasks = [decorate(t, today) for t in rows]
     tasks.sort(key=lambda t: (t["due"] or date.max, t["title"].lower()))
@@ -76,11 +78,13 @@ def delete(conn: sqlite3.Connection, task_id: int) -> None:
     conn.execute("DELETE FROM maintenance_tasks WHERE id = ?", (task_id,))
 
 
-def mark_done(conn: sqlite3.Connection, task_id: int, done_on: date | None = None, note: str | None = None) -> date:
-    """Log a completion and move last_done forward (never backwards)."""
+def mark_done(conn: sqlite3.Connection, task_id: int, done_on: date | None = None, note: str | None = None,
+              created_by: int | None = None) -> date:
+    """Log a completion (by `created_by`, a user id) and move last_done forward (never backwards)."""
     done_on = done_on or date.today()
     iso = done_on.isoformat()
-    conn.execute("INSERT INTO maintenance_log (task_id, done_on, note) VALUES (?, ?, ?)", (task_id, iso, note))
+    conn.execute("INSERT INTO maintenance_log (task_id, done_on, note, created_by) VALUES (?, ?, ?, ?)",
+                 (task_id, iso, note, created_by))
     conn.execute("UPDATE maintenance_tasks SET last_done = ? WHERE id = ? AND (last_done IS NULL OR last_done < ?)",
                  (iso, task_id, iso))
     return done_on

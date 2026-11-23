@@ -10,6 +10,7 @@ from app.main import app
 from app.repo import chat as chat_repo
 from app.repo import manuals as manuals_repo
 from app.repo import shares as shares_repo
+from tests.conftest import login
 from tests.test_ingest import _ingest
 
 TOKEN_RE = re.compile(r"/s/([A-Za-z0-9_-]+)")
@@ -24,7 +25,7 @@ def _clean_shares(conn):
 
 
 def _login(c):
-    c.post("/login", data={"password": "pw"}, follow_redirects=False)
+    login(c)
 
 
 def _share(conn, title="Drain hose", body="Fits **5/8 inch**."):

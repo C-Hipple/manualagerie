@@ -20,7 +20,10 @@
       {% set overdue = maintenance_overdue() %}
       <a href="/maintenance" class="{{ 'active' if request.url.path.startswith('/maintenance') }}">Maintenance{% if overdue %} <span class="badge maint-overdue" title="Overdue maintenance tasks">{{ overdue }} overdue</span>{% endif %}</a>
       <a href="/shares" class="{{ 'active' if request.url.path.startswith('/shares') }}">Shares</a>
+      {% if is_admin(request) %}<a href="/settings/users" class="{{ 'active' if request.url.path.startswith('/settings/users') }}">Users</a>{% endif %}
       {% include "_theme_picker.html" %}
+      {% set me = current_user(request) %}
+      {% if me %}<a href="/settings/password" class="whoami {{ 'active' if request.url.path.startswith('/settings/password') }}" title="Signed in as @{{ me.username }}: change my password">{{ me.display_name }}</a>{% endif %}
       <form method="post" action="/logout" class="inline"><button class="linkish" title="Log out">⎋</button></form>
     </nav>
   </header>

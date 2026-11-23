@@ -10,7 +10,7 @@ from app import db
 from app.config import get_settings
 from app.ingest import extract, fetch
 from app.main import app
-from tests.conftest import make_pdf
+from tests.conftest import login, make_pdf
 
 PUBLIC = "93.184.216.34"
 
@@ -18,7 +18,7 @@ PUBLIC = "93.184.216.34"
 @pytest.fixture
 def client():
     with TestClient(app) as c:
-        c.post("/login", data={"password": "pw"})
+        login(c)
         yield c
 
 

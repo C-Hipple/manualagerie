@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
 
-from .. import db
+from .. import auth, db
 from ..repo import chat as chat_repo
 from ..repo import shares as shares_repo
 from ..web import templates
@@ -59,6 +59,7 @@ def share_message(request: Request, msg_id: int):
         if m is None or m["role"] != "assistant" or m["tool_calls"] or not m["content"]:
             raise HTTPException(404, "Message not found")
         title = chat_repo.question_before(conn, m["conversation_id"], msg_id)
-        _, token = shares_repo.create(conn, title, m["content"], conversation_id=m["conversation_id"])
+        _, token = shares_repo.create(conn, title, m["content"], conversation_id=m["conversation_id"],
+                                      created_by=auth.current_user_id(request))
     url = shares_repo.public_url(token, str(request.base_url))
     return templates.TemplateResponse(request, "_share_link.html", {"url": url})

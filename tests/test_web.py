@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
-from tests.conftest import make_pdf
+from tests.conftest import login, make_pdf
 
 
 def client():
@@ -18,8 +18,8 @@ def test_requires_login():
 
 def test_login_and_upload(tmp_path):
     with client() as c:
-        assert c.post("/login", data={"password": "nope"}).status_code == 401
-        r = c.post("/login", data={"password": "pw"}, follow_redirects=False)
+        assert c.post("/login", data={"username": "tester", "password": "nope"}).status_code == 401
+        r = login(c)
         assert r.status_code == 303
         assert c.get("/").status_code == 200
 
@@ -35,7 +35,7 @@ def test_login_and_upload(tmp_path):
 
 
 def _login_and_upload(c, tmp_path, name="Fridge.pdf"):
-    c.post("/login", data={"password": "pw"}, follow_redirects=False)
+    login(c)
     pdf = make_pdf(tmp_path / name, [[("FRIDGE FILTER", 16), ("Replace the water filter.", 10)]])
     c.post("/manuals/upload", files=[("files", (name, pdf.read_bytes(), "application/pdf"))],
            headers={"hx-request": "true"})

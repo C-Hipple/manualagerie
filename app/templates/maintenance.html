@@ -36,7 +36,7 @@
         </td>
         <td><span class="badge maint-{{ t.status }}">{{ t.status_label }}</span></td>
         <td>{{ t.due }}</td>
-        <td class="hide-sm">{{ t.last_done or 'never' }}</td>
+        <td class="hide-sm">{{ t.last_done or 'never' }}{% if t.last_done_by %}<div class="muted small">by {{ t.last_done_by }}</div>{% endif %}</td>
         <td class="row">
           <form method="post" action="/maintenance/{{ t.id }}/done" class="inline"><button class="primary">Mark done</button></form>
           <a class="button" href="/maintenance?edit={{ t.id }}">Edit</a>

@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.repo import chat as chat_repo
+from tests.conftest import ensure_user, login
 
 URL = "/api/conversations/search"
 
@@ -17,12 +18,12 @@ def _clean(conn):
 @pytest.fixture
 def web():
     with TestClient(app) as c:
-        c.post("/login", data={"password": "pw"}, follow_redirects=False)
+        login(c)
         yield c
 
 
 def _conv(conn, title, *msgs):
-    cid = chat_repo.create_conversation(conn, title)
+    cid = chat_repo.create_conversation(conn, title, user_id=ensure_user())
     for role, content, kw in msgs:
         chat_repo.add_message(conn, cid, role, content, **kw)
     conn.commit()
